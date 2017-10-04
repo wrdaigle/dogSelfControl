@@ -1,16 +1,37 @@
+#!/usr/bin/env python3 #the script is python3
+import sys
+import random
+import time
 
 import tkinter as tk
 from tkinter import messagebox
+if sys.platform.startswith('win'):
+    pass
+else:
+    import rpiParts
+    rpiParts.setupGPIO()
+    feeder1 = rpiParts.feeder(17,27,22,24,25)
+    feeder2 = rpiParts.feeder(19,26,13,23,8)
+    touchSensor = rpiParts.touchSensor()
 
-from pygame import mixer
+
 
 import sqlite3
-import sys
+
+import os
+import threading
 
 LARGE_FONT= ("Verdana", 16)
 
-dbPath = r'selfControlData.sqlite3'
+homePath = os.path.split(os.path.realpath(__file__))[0]
+dbPath = os.path.join(homePath,'data','selfControlData.sqlite3')
 con = None
+
+
+import pygame
+pygame.init()
+sound = pygame.mixer.Sound(os.path.join(homePath,'sounds','tada.wav'))
+
 
 class selfControlApp(tk.Tk):
 
@@ -26,7 +47,7 @@ class selfControlApp(tk.Tk):
 
         self.frames = {}
 
-        for F in (screenStart, screenRegister, screenTrial):
+        for F in (screenStart, screenRegister,screenTrial, screenTrialSetup, screenConfig):
             frame = F(container, self)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
@@ -40,7 +61,6 @@ class selfControlApp(tk.Tk):
 
 
 class screenStart(tk.Frame):
-
     def __init__(self, parent, controller):
         tk.Frame.__init__(self,parent)
         label = tk.Label(self, text="Testing Dog Self-Control", font=LARGE_FONT)
@@ -49,11 +69,50 @@ class screenStart(tk.Frame):
         btnRegister = tk.Button(self, text="Register a Dog",command=lambda: controller.show_frame(screenRegister))
         btnRegister.pack(pady=10,padx=10)
 
-        btnRunTrial = tk.Button(self, text="Run a trial", command=lambda: controller.show_frame(screenTrial))
-        btnRunTrial.pack(pady=10,padx=10)
+        btnConfig = tk.Button(self, text="Update settings", command=lambda: controller.show_frame(screenConfig))
+        btnConfig.pack(pady=10,padx=10)
+
+        btnRunTrialSetup = tk.Button(self, text="Run a trial", command=lambda: controller.show_frame(screenTrialSetup))
+        btnRunTrialSetup.pack(pady=10,padx=10)
+
+class screenConfig(tk.Frame):
+    def __init__(self, parent, controller):
+        self.controller = controller
+        tk.Frame.__init__(self, parent)
+
+        tk.Label(self, text="Update configuration", font=LARGE_FONT).grid(row=0,column=0,columnspan=2)
+
+
+        con = sqlite3.connect(dbPath)
+        cur = con.cursor()
+        cur.execute('SELECT Description,Value,Units from Configuration')
+        data =cur.fetchall()
+        self.configurations = {}
+        rownum=2
+        for row in data:
+            self.configurations.setdefault(row[0],{})
+            self.configurations[row[0]]['value'] = row[1]
+            self.configurations[row[0]]['units'] = row[2]
+            self.configurations[row[0]]['var'] = tk.StringVar()
+            tk.Label(self, text=row[0]+' ('+self.configurations[row[0]]['units']+')').grid(row=rownum,column=0,sticky='w')
+            tk.Entry(self,textvariable=self.configurations[row[0]]['var']).grid(row=rownum,column=1,sticky='e')
+            self.configurations[row[0]]['var'].set(self.configurations[row[0]]['value'])
+            rownum +=1
+
+        con.close()
+##        print(self.configurations)
+##        rownum=2
+##        for configDesc, data in self.configurations.items():
+##            tk.Label(self, text=configDesc+' ('+data['units']+')').grid(row=rownum,column=0,sticky='w')
+##            tk.Entry(self,textvariable=data['value']).grid(row=rownum,column=1,sticky='e')
+##            rownum +=1
+
+
+
+##            self.dogName = tk.StringVar()
+##            tk.Entry(self,textvariable=self.dogName).grid(row=1,column=1,sticky='w')
 
 class screenRegister(tk.Frame):
-
     def __init__(self, parent, controller):
         self.controller = controller
 
@@ -140,52 +199,155 @@ class screenRegister(tk.Frame):
                             Registration_Date,
                             Breed,
                             Age_at_registration,
-                            Affiliation
+                            Affiliation,
+                            Large_reward_side
                     )
                     VALUES (
                         '"""+self.dogName.get()+"""',
                         DATETIME('now'),
                         '"""+self.dogBreed.get()+"""',
                         '"""+str(self.dogAge.get())+"""',
-                        '"""+self.affiliation.get()+"""'
+                        '"""+self.affiliation.get()+"""',
+                        '"""+random.choice(['left','right'])+"""'
                     )
                 """
             )
             con.commit()
             con.close()
             messagebox.showinfo('Dog Registered',self.dogName.get() + ' has been registered.')
+
             self.resetForm()
             self.controller.show_frame(screenStart)
 
+
+
+class screenTrialSetup(tk.Frame):
+
+    def __init__(self, parent, controller):
+        self.controller = controller
+
+        #setup the frame
+        tk.Frame.__init__(self, parent)
+        lblTitle = tk.Label(self, text="Configure Trial", font=LARGE_FONT).grid(row=0,column=0,columnspan=2)
+
+        #add a the "select a dog" option list
+        tk.Label(self, text="Select a dog:").grid(row=2,column=0,sticky='e')
+        self.dogChoice_default = '--'
+        self.dogName = tk.StringVar()
+        self.currentDogSelection = None
+        self.dogName.set(self.dogChoice_default) # default choice
+        dogList = self.getDogList()
+        def onDogSelect(val):
+            btnRunTrial.config(state="normal")
+            self.currentDogSelection = val
+        self.optMenu = tk.OptionMenu(self, self.dogName, *dogList, command=onDogSelect)
+        self.optMenu.config(width=30)
+        self.optMenu.grid(row=2,column=1,sticky='w')
+
+        # add a "cancel" button
+        def onRefresh():
+            self.dogName.set(self.dogChoice_default)
+            self.optMenu['menu'].delete(0,'end')
+            newDogList = self.getDogList()
+            for dog in newDogList:
+                self.optMenu['menu'].add_command(label=dog, command=tk._setit(self.dogName, dog))
+        btnRefreshDogList = tk.Button(self, text="Refresh", command=onRefresh )
+        btnRefreshDogList.grid(row=2,column=2)
+
+        #add a "run a trial" button
+        def onTrialRun():
+            controller.show_frame(screenTrial)
+            controller.frames[screenTrial].newTrial(self.currentDogSelection)
+        btnRunTrial = tk.Button(self, text="Run a trial", state=tk.DISABLED,command=onTrialRun)
+
+        btnRunTrial.grid(pady=40,row=3,column=1,sticky='w')
+
+        # add a "cancel" button
+        def onCancel():
+            self.dogName.set(self.dogChoice_default)
+            controller.show_frame(screenStart)
+            btnRunTrial.config(state="disabled")
+        btnCancel = tk.Button(self, text="Cancel", command=onCancel )
+        btnCancel.grid(row=3,column=2)
+
+    def getDogList(self):
+        con = sqlite3.connect(dbPath)
+        cur = con.cursor()
+        cur.execute('SELECT DogID, Name, Breed from Dog order by Name, Breed')
+        data =cur.fetchall()
+        dogList = []
+        for row in data:
+            dogList.append(row[1]+' - '+row[2]+' ('+str(row[0])+')')
+        con.close()
+        return dogList
 
 class screenTrial(tk.Frame):
 
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
-        label = tk.Label(self, text="Page One!!!", font=LARGE_FONT).grid(row=0,column=1)
-        #label.pack(pady=10,padx=10)
 
-        #button1 = tk.Button(self, text="Back to Home",command=lambda: controller.show_frame(OpeningScreen)).grid(row=1,column=1)
+        self.dogName = ''
+        self.controller = controller
+        tk.Label(self, text="Trial in progress", font=LARGE_FONT).grid(row=0,column=1)
+        tk.Label(self, text="Dog Name:").grid(row=1,column=1,sticky='e')
+        tk.Label(self, text="Dog Breed:").grid(row=2,column=1,sticky='e')
+        tk.Label(self, text="Large Reward Side:").grid(row=3,column=1,sticky='e')
+        tk.Label(self, text="Elapsed time:").grid(row=4,column=1,sticky='e')
 
-        #button2 = tk.Button(self, text="Page Two",command=lambda: controller.show_frame(TrialScreen)).grid(row=2,column=1,pady=10,padx=10)
+        self.dogNameVar = tk.StringVar()
+        tk.Label(self, textvariable = self.dogNameVar).grid(row=1,column=2,sticky='w')
+        self.dogBreedVar = tk.StringVar()
+        tk.Label(self, textvariable = self.dogBreedVar).grid(row=2,column=2,sticky='w')
+        self.largeRewardSideVar = tk.StringVar()
+        tk.Label(self, textvariable = self.largeRewardSideVar).grid(row=3,column=2,sticky='w')
+        self.timeVar = tk.StringVar()
+        self.timer = tk.Label(self, textvariable = self.timeVar).grid(row=4,column=2,sticky='w')
 
-        slider1 = tk.Scale(self, from_=100, to=0).grid(row=1,column=0,rowspan=3)
-        slider2 = tk.Scale(self, from_=100, to=0)
-        slider2.grid(row=1,column=3,rowspan=3)
-        slider2.set(30)
-        slider2.config(state="disabled")
+        #button2 = tk.Button(self, text="Play Sound",command=playSound).grid(row=3,column=2)
+    def newTrial(self,dogName):
+        dogID = dogName.split('(')[1].split(')')[0]
+        dogData = self.getDogData(dogID)
+        self.dogNameVar.set(dogData[0])
+        self.dogBreedVar.set(dogData[1])
+        self.largeRewardSideVar.set(dogData[2])
+        startTime = time.time()
 
-        button2 = tk.Button(self, text="Play Sound",command=playSound).grid(row=2,column=2)
+        def setTime():
+            self.timeVar.set(str(round(time.time() - startTime))+ ' seconds')
+            self.controller.after(1000,setTime)
+        setTime()
+
+    def getDogData(self,dogID):
+        con = sqlite3.connect(dbPath)
+        cur = con.cursor()
+        cur.execute('SELECT Name,Breed,Large_reward_side from Dog where dogID = '+dogID)
+        data =cur.fetchall()
+        dogData = data[0]
+        con.close()
+        return dogData
+
+
 
 def playSound():
-    mixer.init()
-    sound = mixer.Sound(r"C:\Python27\Lib\test\audiodata\pluck-pcm8.wav")
     sound.play()
 
+def dispense():
+    feeder2.dispense(100)
+def fill():
+    feeder2.returnToFull()
 
+def on_closing():
+    if messagebox.askokcancel("Quit", "Do you want to quit?"):
+        if sys.platform.startswith('win') == False:
+            rpiParts.cleanup()
+        app.destroy()
 
+if sys.platform.startswith('win') == False:
+    sensorWatcher = threading.Thread(target=touchSensor.watch)
+    sensorWatcher.start()
 
 app = selfControlApp()
+app.protocol("WM_DELETE_WINDOW", on_closing)
 app.mainloop()
 
 
