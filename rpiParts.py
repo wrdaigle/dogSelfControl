@@ -39,6 +39,7 @@ class feeder():
             GPIO.output(self.gpio_step,True)
             time.sleep(self.pauseInterval)
             GPIO.output(self.gpio_step,False)
+            time.sleep(self.pauseInterval)
             n+=1
         GPIO.output(self.gpio_sleep,False)
 
@@ -52,6 +53,7 @@ class feeder():
             GPIO.output(self.gpio_step,True)
             time.sleep(self.pauseInterval)
             GPIO.output(self.gpio_step,False)
+            time.sleep(self.pauseInterval)
         GPIO.output(self.gpio_sleep,False)
 
 
@@ -76,6 +78,10 @@ class touchSensor():
         # Also you can specify an optional I2C bus with the bus keyword parameter.
         #self.cap.begin(bus=1)
 
+##    def resetStates(self):
+##        self.leftPadTouched = False
+##        self.rightPadTouched = False
+
     def watch(self):
         # Main loop to print a message every time a pin is touched.
         print('Press Ctrl-C to quit.')
@@ -84,6 +90,7 @@ class touchSensor():
             current_touched = self.cap.touched()
             # Check each pin's last and current state to see if it was pressed or released.
             for i in range(12):
+
                 # Each pin is represented by a bit in the touched value.  A value of 1
                 # means the pin is being touched, and 0 means it is not being touched.
                 pin_bit = 1 << i

@@ -259,8 +259,13 @@ class screenTrialSetup(tk.Frame):
             controller.show_frame(screenTrial)
             controller.frames[screenTrial].newTrial(self.currentDogSelection)
         btnRunTrial = tk.Button(self, text="Run a trial", state=tk.DISABLED,command=onTrialRun)
-
         btnRunTrial.grid(pady=40,row=3,column=1,sticky='w')
+
+        #add a "reset pumps" button
+        def onPumpFill():
+            feeder1.returnToFull()
+            feeder2.returnToFull()
+        tk.Button(self, text="Reset pumps" ,command=onPumpFill).grid(row=4,column=1,sticky='w')
 
         # add a "cancel" button
         def onCancel():
@@ -268,7 +273,7 @@ class screenTrialSetup(tk.Frame):
             controller.show_frame(screenStart)
             btnRunTrial.config(state="disabled")
         btnCancel = tk.Button(self, text="Cancel", command=onCancel )
-        btnCancel.grid(row=3,column=2)
+        btnCancel.grid(row=4,column=2)
 
     def getDogList(self):
         con = sqlite3.connect(dbPath)
@@ -293,6 +298,11 @@ class screenTrial(tk.Frame):
         tk.Label(self, text="Dog Breed:").grid(row=2,column=1,sticky='e')
         tk.Label(self, text="Large Reward Side:").grid(row=3,column=1,sticky='e')
         tk.Label(self, text="Elapsed time:").grid(row=4,column=1,sticky='e')
+##        tk.Label(self, text="Left pad touched:").grid(row=5,column=1,sticky='e')
+##        tk.Label(self, text="Right pad touched:").grid(row=6,column=1,sticky='e')
+
+        self.sideSelectedVar = tk.StringVar()
+        tk.Label(self, textvariable = self.sideSelectedVar, font=LARGE_FONT).grid(row=7,column=1)
 
         self.dogNameVar = tk.StringVar()
         tk.Label(self, textvariable = self.dogNameVar).grid(row=1,column=2,sticky='w')
@@ -302,8 +312,12 @@ class screenTrial(tk.Frame):
         tk.Label(self, textvariable = self.largeRewardSideVar).grid(row=3,column=2,sticky='w')
         self.timeVar = tk.StringVar()
         self.timer = tk.Label(self, textvariable = self.timeVar).grid(row=4,column=2,sticky='w')
+##        self.leftPadTouchedVar = tk.StringVar()
+##        self.timer = tk.Label(self, textvariable = self.leftPadTouchedVar).grid(row=5,column=2,sticky='w')
+##        self.rightPadTouchedVar = tk.StringVar()
+##        self.timer = tk.Label(self, textvariable = self.rightPadTouchedVar).grid(row=6,column=2,sticky='w')
 
-        #button2 = tk.Button(self, text="Play Sound",command=playSound).grid(row=3,column=2)
+##        button2 = tk.Button(self, text="Play Sound",command=playSound).grid(row=7,column=2)
     def newTrial(self,dogName):
         dogID = dogName.split('(')[1].split(')')[0]
         dogData = self.getDogData(dogID)
@@ -312,10 +326,54 @@ class screenTrial(tk.Frame):
         self.largeRewardSideVar.set(dogData[2])
         startTime = time.time()
 
-        def setTime():
+##        if sys.platform.startswith('win') == False:
+##            sensorWatcher.resetStates()
+##
+##            def checkTouchState():
+##                self.leftPadTouchedVar.set(sensorWatcher.leftPadTouched)
+##                self.rightPadTouchedVar.set(sensorWatcher.rightPadTouched)
+##                self.controller.after(100,checkTouchState)
+##            checkTouchState()
+        self.leftPadTouchedPreviously = False
+        self.rightPadTouchedPreviously = False
+        def checkStatus():
             self.timeVar.set(str(round(time.time() - startTime))+ ' seconds')
-            self.controller.after(1000,setTime)
-        setTime()
+            if sys.platform.startswith('win') == False:
+                if touchSensor.cap.is_touched(0):
+                    if self.leftPadTouchedPreviously == True:
+##                        self.leftPadTouchedVar.set('yup')
+                        self.distributeReward('left')
+                        return
+                    else:
+                        self.leftPadTouchedPreviously = True
+                else:
+                    self.leftPadTouchedPreviously = False
+                if touchSensor.cap.is_touched(1):
+                    if self.rightPadTouchedPreviously == True:
+##                        self.rightPadTouchedVar.set('yup')
+                        self.distributeReward('right')
+                        return
+                    else:
+                        self.rightPadTouchedPreviously = True
+                else:
+                    self.rightPadTouchedPreviously = False
+                self.controller.after(10,checkStatus)
+        checkStatus()
+
+    def distributeReward(self,sideSelected):
+        playSound()
+        if sideSelected == 'left':
+            self.sideSelectedVar.set('Left side selected')
+            def dispenseLeft():
+                feeder1.dispense(50)
+                self.controller.show_frame(screenTrialSetup)
+            self.controller.after(2000,dispenseLeft)
+        else:
+            self.sideSelectedVar.set('Right side selected')
+            def dispenseRight():
+                feeder2.dispense(200)
+                self.controller.show_frame(screenTrialSetup)
+            self.controller.after(6000,dispenseRight)
 
     def getDogData(self,dogID):
         con = sqlite3.connect(dbPath)
@@ -342,9 +400,9 @@ def on_closing():
             rpiParts.cleanup()
         app.destroy()
 
-if sys.platform.startswith('win') == False:
-    sensorWatcher = threading.Thread(target=touchSensor.watch)
-    sensorWatcher.start()
+##if sys.platform.startswith('win') == False:
+##    sensorWatcher = threading.Thread(target=touchSensor.watch)
+##    sensorWatcher.start()
 
 app = selfControlApp()
 app.protocol("WM_DELETE_WINDOW", on_closing)
