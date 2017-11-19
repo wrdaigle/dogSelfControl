@@ -101,7 +101,7 @@ class screenConfig(tk.Frame):
         #add a row for each configuration
         rownum=2
         self.configurations = {}
-        self.configDescriptions = ['Small Reward Delay','Large Reward Delay','Small Reward Quantity','Large Reward Quantity']
+        self.configDescriptions = ['Small Reward Delay','Large Reward Delay','Small Reward Quantity','Large Reward Quantity', 'Pause Interval']
         for settingDesc in self.configDescriptions:
             self.configurations.setdefault(settingDesc,{})
             self.configurations[settingDesc]['var'] = tk.StringVar()
@@ -252,8 +252,9 @@ class screenTrialSetup(tk.Frame):
 
         #add a "reset pumps" button
         def onPumpFill():
-            feeder1.returnToFull()
-            feeder2.returnToFull()
+            pauseInterval = float(dataHelper.getConfigValue('Pause Interval')['value'])
+            feeder1.returnToFull(pauseInterval)
+            feeder2.returnToFull(pauseInterval)
         tk.Button(self, text="Reset pumps" ,command=onPumpFill).grid(pady=10,row=6,column=1,sticky='w')
 
         # add a "cancel" button
@@ -264,7 +265,6 @@ class screenTrialSetup(tk.Frame):
         btnCancel = tk.Button(self, text="Cancel", command=onCancel )
         btnCancel.grid(pady=10,row=6,column=2)
     def resetForm(self):
-        print('running')
         self.dogName.set(self.dogChoice_default)
         self.hoursSinceLastFeeding.set('')
         self.observers.set('')
@@ -357,7 +357,7 @@ class screenTrial(tk.Frame):
         self.statusVar.set('Feeders enabled. Trial in progress')
         startTime = time.time()
         self.btnStartFeeders.config(state="disabled")
-
+        self.pauseInterval = float(dataHelper.getConfigValue('Pause Interval')['value'])
 ##        if sys.platform.startswith('win') == False:
 ##            sensorWatcher.resetStates()
 ##
@@ -396,6 +396,7 @@ class screenTrial(tk.Frame):
         self.controller.show_frame(screenStart)
 
     def distributeReward(self,sideSelected):
+
         dataHelper.logEvent(self.trialId,sideSelected+' side selected')
         playSound()
         if sideSelected == 'left':
@@ -403,7 +404,7 @@ class screenTrial(tk.Frame):
             def dispenseLeft():
                 dataHelper.logEvent(self.trialId,'Left reward distributed.')
                 self.statusVar.set('Left reward distriuted. Start another run at any time.')
-                feeder1.dispense(self.leftSideQuantity)
+                feeder1.dispense(self.leftSideQuantity,self.pauseInterval)
                 #self.controller.show_frame(screenTrialSetup)
                 self.btnStartFeeders.config(state="normal")
             self.controller.after(self.leftSideDelay,dispenseLeft)
@@ -412,7 +413,7 @@ class screenTrial(tk.Frame):
             def dispenseRight():
                 dataHelper.logEvent(self.trialId,'Right reward distributed.')
                 self.statusVar.set('Right reward distriuted. Start another run at any time.')
-                feeder2.dispense(self.rightSideQuantity)
+                feeder2.dispense(self.rightSideQuantity,self.pauseInterval)
                 #self.controller.show_frame(screenTrialSetup)
                 self.btnStartFeeders.config(state="normal")
             self.controller.after(self.rightSideDelay,dispenseRight)
@@ -422,10 +423,11 @@ class screenTrial(tk.Frame):
 def playSound():
     sound.play()
 
-def dispense():
-    feeder2.dispense(100)
-def fill():
-    feeder2.returnToFull()
+##def dispense():
+##    feeder2.dispense(100)
+##def fill():
+##    pauseInterval = getPauseInterval()
+##    feeder2.returnToFull()
 
 def on_closing():
     if messagebox.askokcancel("Quit", "Do you want to quit?"):

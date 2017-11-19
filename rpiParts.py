@@ -21,14 +21,14 @@ class feeder():
         self.gpio_sleep = gpio_sleep
         self.gpio_full = gpio_full
         self.gpio_empty = gpio_empty
-        self.pauseInterval = 0.43/1000
+        #self.pauseInterval = 0.43/1000
         for pin in [gpio_step,gpio_direction,gpio_sleep]:
             print('pin',pin)
             GPIO.setup(pin, GPIO.OUT)
         for pin in [gpio_full,gpio_empty]:
             GPIO.setup(pin, GPIO.IN)
 
-    def dispense(self,steps):
+    def dispense(self,steps,pauseInterval):
         GPIO.output(self.gpio_direction,True)
         GPIO.output(self.gpio_sleep,True)
         n = 0
@@ -37,13 +37,13 @@ class feeder():
                 print('Pump is Empty')
                 break
             GPIO.output(self.gpio_step,True)
-            time.sleep(self.pauseInterval)
+            time.sleep(pauseInterval)
             GPIO.output(self.gpio_step,False)
-            time.sleep(self.pauseInterval)
+            time.sleep(pauseInterval)
             n+=1
         GPIO.output(self.gpio_sleep,False)
 
-    def returnToFull(self):
+    def returnToFull(self,pauseInterval):
         GPIO.output(self.gpio_direction,False)
         GPIO.output(self.gpio_sleep,True)
         while 1==1:
@@ -51,9 +51,9 @@ class feeder():
                 print('Pump is full')
                 break
             GPIO.output(self.gpio_step,True)
-            time.sleep(self.pauseInterval)
+            time.sleep(pauseInterval)
             GPIO.output(self.gpio_step,False)
-            time.sleep(self.pauseInterval)
+            time.sleep(pauseInterval)
         GPIO.output(self.gpio_sleep,False)
 
 
