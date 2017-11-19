@@ -1,7 +1,19 @@
 #!/usr/bin/env python3 #the script is python3
+
+# ###################################
+# To Do
+#
+# Link configuration setting to trials
+# Set up logging
+# Start sending data to database
+# Add a backup function
+# turn off wifi
+
+
+
 import sys
-import random
 import time
+import dataHelper
 
 import tkinter as tk
 from tkinter import messagebox
@@ -16,7 +28,7 @@ else:
 
 
 
-import sqlite3
+#import sqlite3
 
 import os
 import threading
@@ -24,8 +36,6 @@ import threading
 LARGE_FONT= ("Verdana", 16)
 
 homePath = os.path.split(os.path.realpath(__file__))[0]
-dbPath = os.path.join(homePath,'data','selfControlData.sqlite3')
-con = None
 
 
 import pygame
@@ -72,7 +82,13 @@ class screenStart(tk.Frame):
         btnConfig = tk.Button(self, text="Update settings", command=lambda: controller.show_frame(screenConfig))
         btnConfig.pack(pady=10,padx=10)
 
-        btnRunTrialSetup = tk.Button(self, text="Run a trial", command=lambda: controller.show_frame(screenTrialSetup))
+        def showTrialSetup():
+            #refresh the form elements
+            controller.frames[screenTrialSetup].resetForm()
+            #show the form
+            controller.show_frame(screenTrialSetup)
+
+        btnRunTrialSetup = tk.Button(self, text="Run a trial", command=lambda: showTrialSetup())
         btnRunTrialSetup.pack(pady=10,padx=10)
 
 class screenConfig(tk.Frame):
@@ -82,35 +98,35 @@ class screenConfig(tk.Frame):
 
         tk.Label(self, text="Update configuration", font=LARGE_FONT).grid(row=0,column=0,columnspan=2)
 
-
-        con = sqlite3.connect(dbPath)
-        cur = con.cursor()
-        cur.execute('SELECT Description,Value,Units from Configuration')
-        data =cur.fetchall()
-        self.configurations = {}
+        #add a row for each configuration
         rownum=2
-        for row in data:
-            self.configurations.setdefault(row[0],{})
-            self.configurations[row[0]]['value'] = row[1]
-            self.configurations[row[0]]['units'] = row[2]
-            self.configurations[row[0]]['var'] = tk.StringVar()
-            tk.Label(self, text=row[0]+' ('+self.configurations[row[0]]['units']+')').grid(row=rownum,column=0,sticky='w')
-            tk.Entry(self,textvariable=self.configurations[row[0]]['var']).grid(row=rownum,column=1,sticky='e')
-            self.configurations[row[0]]['var'].set(self.configurations[row[0]]['value'])
+        self.configurations = {}
+        self.configDescriptions = ['Small Reward Delay','Large Reward Delay','Small Reward Quantity','Large Reward Quantity']
+        for settingDesc in self.configDescriptions:
+            self.configurations.setdefault(settingDesc,{})
+            self.configurations[settingDesc]['var'] = tk.StringVar()
+            settingData = dataHelper.getConfigValue(settingDesc)
+            tk.Label(self, text=settingDesc+' ('+settingData['units']+')').grid(row=rownum,column=0,sticky='w')
+            tk.Entry(self,textvariable=self.configurations[settingDesc]['var']).grid(row=rownum,column=1,sticky='e')
+            self.configurations[settingDesc]['var'].set(settingData['value'])
             rownum +=1
 
-        con.close()
-##        print(self.configurations)
-##        rownum=2
-##        for configDesc, data in self.configurations.items():
-##            tk.Label(self, text=configDesc+' ('+data['units']+')').grid(row=rownum,column=0,sticky='w')
-##            tk.Entry(self,textvariable=data['value']).grid(row=rownum,column=1,sticky='e')
-##            rownum +=1
+        # add an exit button
+        tk.Button(self, text="Save",command=lambda:self.updateDatabaseUsingForm()).grid(row=rownum,column=0)
+        tk.Button(self, text="Exit without saving",command=lambda:self.updateFormUsingDatabase()).grid(row=rownum,column=1)
+
+    def updateFormUsingDatabase(self):
+        for settingDesc in self.configDescriptions:
+            settingData = dataHelper.getConfigValue(settingDesc)
+            self.configurations[settingDesc]['var'].set(settingData['value'])
+        self.controller.show_frame(screenStart)
+    def updateDatabaseUsingForm(self):
+        for settingDesc in self.configDescriptions:
+            newValue = self.configurations[settingDesc]['var'].get()
+            settingData = dataHelper.setConfigValue(settingDesc,newValue)
+        self.controller.show_frame(screenStart)
 
 
-
-##            self.dogName = tk.StringVar()
-##            tk.Entry(self,textvariable=self.dogName).grid(row=1,column=1,sticky='w')
 
 class screenRegister(tk.Frame):
     def __init__(self, parent, controller):
@@ -134,7 +150,7 @@ class screenRegister(tk.Frame):
         tk.Label(self, text="Affiliation:").grid(row=4,column=0,sticky='e')
         self.affiliation = tk.StringVar()
         self.affiliation.set("--") # default choice
-        affiliationList = self.getAffilliationList()
+        affiliationList = dataHelper.getAffilliationList()
         optMenu = tk.OptionMenu(self, self.affiliation, *affiliationList)
         optMenu.config(width=30)
         optMenu.grid(row=4,column=1,sticky='w')
@@ -159,28 +175,13 @@ class screenRegister(tk.Frame):
             return False
 
         # check to make sure the name/breed combo is not in the database yet
-        con = sqlite3.connect(dbPath)
-        cur = con.cursor()
-        cur.execute("SELECT * from Dog where name = '"+self.dogName.get()+"' and breed = '"+self.dogBreed.get()+"'")
-        data =cur.fetchall()
-        con.close()
-        if len(data)>0:
+        if dataHelper.dogyAlreadyRegistered(self.dogName.get(),self.dogBreed.get()) == True:
             messagebox.showerror('Already Registered','A '+self.dogBreed.get()+' with the name '+self.dogName.get()+' has already been registered.  Please edit the name of the newly registered dog so you can distinguish the dogs')
             return False
 
         # if there are no problems
         return True
 
-    def getAffilliationList(self):
-        con = sqlite3.connect(dbPath)
-        cur = con.cursor()
-        cur.execute('SELECT * from AffiliationLU')
-        data =cur.fetchall()
-        affiliationList = []
-        for row in data:
-            affiliationList.append(row[0])
-        con.close()
-        return affiliationList
 
     def resetForm(self):
         self.dogName.set('')
@@ -190,30 +191,8 @@ class screenRegister(tk.Frame):
 
     def addRecord(self):
         if self.validateForm():
-            con = sqlite3.connect(dbPath)
-            cur = con.cursor()
-            cur.execute(
-                """
-                    INSERT INTO Dog (
-                            Name,
-                            Registration_Date,
-                            Breed,
-                            Age_at_registration,
-                            Affiliation,
-                            Large_reward_side
-                    )
-                    VALUES (
-                        '"""+self.dogName.get()+"""',
-                        DATETIME('now'),
-                        '"""+self.dogBreed.get()+"""',
-                        '"""+str(self.dogAge.get())+"""',
-                        '"""+self.affiliation.get()+"""',
-                        '"""+random.choice(['left','right'])+"""'
-                    )
-                """
-            )
-            con.commit()
-            con.close()
+
+            dataHelper.addDogRecord(self.dogName.get(),self.dogBreed.get(),self.dogAge.get(),self.affiliation.get())
             messagebox.showinfo('Dog Registered',self.dogName.get() + ' has been registered.')
 
             self.resetForm()
@@ -229,6 +208,7 @@ class screenTrialSetup(tk.Frame):
         #setup the frame
         tk.Frame.__init__(self, parent)
         lblTitle = tk.Label(self, text="Configure Trial", font=LARGE_FONT).grid(row=0,column=0,columnspan=2)
+        lblTitle = tk.Label(self, text="Note: Complete this step before bringing dog in room. Make sure pump is full!").grid(row=1,column=0,columnspan=2)
 
         #add a the "select a dog" option list
         tk.Label(self, text="Select a dog:").grid(row=2,column=0,sticky='e')
@@ -236,55 +216,79 @@ class screenTrialSetup(tk.Frame):
         self.dogName = tk.StringVar()
         self.currentDogSelection = None
         self.dogName.set(self.dogChoice_default) # default choice
-        dogList = self.getDogList()
-        def onDogSelect(val):
-            btnRunTrial.config(state="normal")
-            self.currentDogSelection = val
-        self.optMenu = tk.OptionMenu(self, self.dogName, *dogList, command=onDogSelect)
+        dogList = dataHelper.getDogList()
+##        def onDogSelect(val):
+##            print('test',val)
+##            self.dogId = val.split('(')[1].split(')')[0]
+##            self.hoursSinceLastFeeding.set('')
+##            self.observers.set('')
+##            btnRunTrial.config(state="normal")
+##            self.currentDogSelection = val
+##        self.optMenu = tk.OptionMenu(self, self.dogName, *dogList, command=onDogSelect)
+        self.optMenu = tk.OptionMenu(self, self.dogName, *dogList)
         self.optMenu.config(width=30)
-        self.optMenu.grid(row=2,column=1,sticky='w')
+        self.optMenu.grid(pady=10,row=2,column=1,sticky='w')
 
-        # add a "cancel" button
-        def onRefresh():
-            self.dogName.set(self.dogChoice_default)
-            self.optMenu['menu'].delete(0,'end')
-            newDogList = self.getDogList()
-            for dog in newDogList:
-                self.optMenu['menu'].add_command(label=dog, command=tk._setit(self.dogName, dog))
-        btnRefreshDogList = tk.Button(self, text="Refresh", command=onRefresh )
-        btnRefreshDogList.grid(row=2,column=2)
+
+        #add an observers field
+        tk.Label(self, text="Observers:").grid(row=3,column=0,sticky='e')
+        self.observers = tk.StringVar()
+        tk.Entry(self,textvariable=self.observers).grid(row=3,column=1,sticky='w')
+
+        #add a hours since last feeding field
+        tk.Label(self, text="Hours since last feeding:").grid(row=4,column=0,sticky='e')
+        self.hoursSinceLastFeeding = tk.StringVar()
+        tk.Entry(self,textvariable=self.hoursSinceLastFeeding).grid(row=4,column=1,sticky='w')
 
         #add a "run a trial" button
         def onTrialRun():
-            controller.show_frame(screenTrial)
-            controller.frames[screenTrial].newTrial(self.currentDogSelection)
-        btnRunTrial = tk.Button(self, text="Run a trial", state=tk.DISABLED,command=onTrialRun)
-        btnRunTrial.grid(pady=40,row=3,column=1,sticky='w')
+            if self.validateForm():
+                dogId = self.dogName.get().split('(')[1].split(')')[0]
+                trialId = dataHelper.logNewTrialRecord(dogId,self.observers.get(),self.hoursSinceLastFeeding.get())
+                controller.show_frame(screenTrial)
+                controller.frames[screenTrial].newTrial(self.dogName.get(), trialId)
+        btnRunTrial = tk.Button(self, text="Start trial", command=onTrialRun)
+        btnRunTrial.grid(pady=10,row=5,column=1,sticky='w')
 
         #add a "reset pumps" button
         def onPumpFill():
             feeder1.returnToFull()
             feeder2.returnToFull()
-        tk.Button(self, text="Reset pumps" ,command=onPumpFill).grid(row=4,column=1,sticky='w')
+        tk.Button(self, text="Reset pumps" ,command=onPumpFill).grid(pady=10,row=6,column=1,sticky='w')
 
         # add a "cancel" button
         def onCancel():
-            self.dogName.set(self.dogChoice_default)
+            #self.dogName.set(self.dogChoice_default)
             controller.show_frame(screenStart)
-            btnRunTrial.config(state="disabled")
+            #btnRunTrial.config(state="disabled")
         btnCancel = tk.Button(self, text="Cancel", command=onCancel )
-        btnCancel.grid(row=4,column=2)
+        btnCancel.grid(pady=10,row=6,column=2)
+    def resetForm(self):
+        print('running')
+        self.dogName.set(self.dogChoice_default)
+        self.hoursSinceLastFeeding.set('')
+        self.observers.set('')
+        self.optMenu['menu'].delete(0,'end')
+        newDogList = dataHelper.getDogList()
+        for dog in newDogList:
+            self.optMenu['menu'].add_command(label=dog, command=tk._setit(self.dogName, dog))
 
-    def getDogList(self):
-        con = sqlite3.connect(dbPath)
-        cur = con.cursor()
-        cur.execute('SELECT DogID, Name, Breed from Dog order by Name, Breed')
-        data =cur.fetchall()
-        dogList = []
-        for row in data:
-            dogList.append(row[1]+' - '+row[2]+' ('+str(row[0])+')')
-        con.close()
-        return dogList
+    def validateForm(self):
+        # check for missing values
+        formErrors = []
+        if self.dogName.get() == '--':
+            formErrors.append("You must select a dog!")
+        if self.observers.get() == '':
+            formErrors.append("Observers is required!")
+        if self.hoursSinceLastFeeding.get() == '':
+            formErrors.append("Hours since last feeding is required!")
+        if len(formErrors)>0:
+            errorString = '\n'.join(formErrors)
+            messagebox.showerror('Missing Values',errorString)
+            return False
+
+        # if there are no problems
+        return True
 
 class screenTrial(tk.Frame):
 
@@ -293,38 +297,66 @@ class screenTrial(tk.Frame):
 
         self.dogName = ''
         self.controller = controller
-        tk.Label(self, text="Trial in progress", font=LARGE_FONT).grid(row=0,column=1)
+        tk.Label(self, text="Current trial", font=LARGE_FONT).grid(row=0,column=1)
         tk.Label(self, text="Dog Name:").grid(row=1,column=1,sticky='e')
         tk.Label(self, text="Dog Breed:").grid(row=2,column=1,sticky='e')
         tk.Label(self, text="Large Reward Side:").grid(row=3,column=1,sticky='e')
-        tk.Label(self, text="Elapsed time:").grid(row=4,column=1,sticky='e')
+
+        self.btnStartFeeders = tk.Button(self, command=lambda:self.startFeeders(), text="Start Feeders")
+        self.btnStartFeeders.grid(row=4,column=1)
+        #self.btnStopFeeders = tk.Button(self, command=lambda:self.stopFeeders(),text="Stop Feeders")
+        #self.btnStopFeeders.grid(row=4,column=2)
+        self.btnQuit = tk.Button(self, command=lambda:self.quitTrial(), text="Quit")
+        self.btnQuit.grid(row=4,column=3,padx=10)
+
+        tk.Label(self, text="Elapsed time:").grid(row=6,column=1,sticky='e')
 ##        tk.Label(self, text="Left pad touched:").grid(row=5,column=1,sticky='e')
 ##        tk.Label(self, text="Right pad touched:").grid(row=6,column=1,sticky='e')
 
-        self.sideSelectedVar = tk.StringVar()
-        tk.Label(self, textvariable = self.sideSelectedVar, font=LARGE_FONT).grid(row=7,column=1)
+        self.statusVar = tk.StringVar()
+        tk.Label(self, textvariable = self.statusVar, fg='red').grid(row=7,column=0,columnspan=3)
 
         self.dogNameVar = tk.StringVar()
         tk.Label(self, textvariable = self.dogNameVar).grid(row=1,column=2,sticky='w')
         self.dogBreedVar = tk.StringVar()
         tk.Label(self, textvariable = self.dogBreedVar).grid(row=2,column=2,sticky='w')
         self.largeRewardSideVar = tk.StringVar()
+
         tk.Label(self, textvariable = self.largeRewardSideVar).grid(row=3,column=2,sticky='w')
         self.timeVar = tk.StringVar()
-        self.timer = tk.Label(self, textvariable = self.timeVar).grid(row=4,column=2,sticky='w')
+        self.timer = tk.Label(self, textvariable = self.timeVar).grid(row=6,column=2,sticky='w')
 ##        self.leftPadTouchedVar = tk.StringVar()
 ##        self.timer = tk.Label(self, textvariable = self.leftPadTouchedVar).grid(row=5,column=2,sticky='w')
 ##        self.rightPadTouchedVar = tk.StringVar()
 ##        self.timer = tk.Label(self, textvariable = self.rightPadTouchedVar).grid(row=6,column=2,sticky='w')
 
 ##        button2 = tk.Button(self, text="Play Sound",command=playSound).grid(row=7,column=2)
-    def newTrial(self,dogName):
+    def newTrial(self,dogName,trialId):
+        dataHelper.logEvent(trialId,'New trial initiated')
+        self.trialId = trialId
         dogID = dogName.split('(')[1].split(')')[0]
-        dogData = self.getDogData(dogID)
+        dogData = dataHelper.getDogData(dogID)
         self.dogNameVar.set(dogData[0])
         self.dogBreedVar.set(dogData[1])
         self.largeRewardSideVar.set(dogData[2])
+
+        if dogData[2] == 'right':
+            self.rightSideDelay = dataHelper.getConfigValue('Large Reward Delay')['value']*1000
+            self.rightSideQuantity = dataHelper.getConfigValue('Large Reward Quantity')['value']
+            self.leftSideDelay = dataHelper.getConfigValue('Small Reward Delay')['value']*1000
+            self.leftSideQuantity = dataHelper.getConfigValue('Small Reward Quantity')['value']
+        else:
+            self.leftSideDelay = dataHelper.getConfigValue('Large Reward Delay')['value']*1000
+            self.leftSideQuantity = dataHelper.getConfigValue('Large Reward Quantity')['value']
+            self.rightSideDelay = dataHelper.getConfigValue('Small Reward Delay')['value']*1000
+            self.rightSideQuantity = dataHelper.getConfigValue('Small Reward Quantity')['value']
+
+    def startFeeders(self):
+
+        dataHelper.logEvent(self.trialId,'Feeders enabled')
+        self.statusVar.set('Feeders enabled. Trial in progress')
         startTime = time.time()
+        self.btnStartFeeders.config(state="disabled")
 
 ##        if sys.platform.startswith('win') == False:
 ##            sensorWatcher.resetStates()
@@ -357,32 +389,33 @@ class screenTrial(tk.Frame):
                         self.rightPadTouchedPreviously = True
                 else:
                     self.rightPadTouchedPreviously = False
-                self.controller.after(10,checkStatus)
+            self.controller.after(10,checkStatus)
         checkStatus()
 
+    def quitTrial(self):
+        self.controller.show_frame(screenStart)
+
     def distributeReward(self,sideSelected):
+        dataHelper.logEvent(self.trialId,sideSelected+' side selected')
         playSound()
         if sideSelected == 'left':
-            self.sideSelectedVar.set('Left side selected')
+            self.statusVar.set('Left side selected. Reward will be distributed after a '+str(self.leftSideDelay/1000)+' second delay.')
             def dispenseLeft():
-                feeder1.dispense(50)
-                self.controller.show_frame(screenTrialSetup)
-            self.controller.after(2000,dispenseLeft)
+                dataHelper.logEvent(self.trialId,'Left reward distributed.')
+                self.statusVar.set('Left reward distriuted. Start another run at any time.')
+                feeder1.dispense(self.leftSideQuantity)
+                #self.controller.show_frame(screenTrialSetup)
+                self.btnStartFeeders.config(state="normal")
+            self.controller.after(self.leftSideDelay,dispenseLeft)
         else:
-            self.sideSelectedVar.set('Right side selected')
+            self.statusVar.set('Right side selected. Reward will be distributed after a '+str(self.rightSideDelay/1000)+' second delay.')
             def dispenseRight():
-                feeder2.dispense(200)
-                self.controller.show_frame(screenTrialSetup)
-            self.controller.after(6000,dispenseRight)
-
-    def getDogData(self,dogID):
-        con = sqlite3.connect(dbPath)
-        cur = con.cursor()
-        cur.execute('SELECT Name,Breed,Large_reward_side from Dog where dogID = '+dogID)
-        data =cur.fetchall()
-        dogData = data[0]
-        con.close()
-        return dogData
+                dataHelper.logEvent(self.trialId,'Right reward distributed.')
+                self.statusVar.set('Right reward distriuted. Start another run at any time.')
+                feeder2.dispense(self.rightSideQuantity)
+                #self.controller.show_frame(screenTrialSetup)
+                self.btnStartFeeders.config(state="normal")
+            self.controller.after(self.rightSideDelay,dispenseRight)
 
 
 
