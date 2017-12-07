@@ -371,7 +371,7 @@ class screenTrial(tk.Frame):
         def checkStatus():
             self.timeVar.set(str(round(time.time() - startTime))+ ' seconds')
             if sys.platform.startswith('win') == False:
-                if touchSensor.cap.is_touched(0):
+                if touchSensor.cap.is_touched(10):
                     if self.leftPadTouchedPreviously == True:
 ##                        self.leftPadTouchedVar.set('yup')
                         self.distributeReward('left')
@@ -380,7 +380,7 @@ class screenTrial(tk.Frame):
                         self.leftPadTouchedPreviously = True
                 else:
                     self.leftPadTouchedPreviously = False
-                if touchSensor.cap.is_touched(1):
+                if touchSensor.cap.is_touched(7):
                     if self.rightPadTouchedPreviously == True:
 ##                        self.rightPadTouchedVar.set('yup')
                         self.distributeReward('right')

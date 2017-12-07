@@ -16,6 +16,7 @@ def cleanup():
 
 class feeder():
     def __init__(self,gpio_step,gpio_direction,gpio_sleep,gpio_full,gpio_empty):
+        print('Initializing feeder.')
         self.gpio_step = gpio_step
         self.gpio_direction = gpio_direction
         self.gpio_sleep = gpio_sleep
@@ -23,7 +24,6 @@ class feeder():
         self.gpio_empty = gpio_empty
         #self.pauseInterval = 0.43/1000
         for pin in [gpio_step,gpio_direction,gpio_sleep]:
-            print('pin',pin)
             GPIO.setup(pin, GPIO.OUT)
         for pin in [gpio_full,gpio_empty]:
             GPIO.setup(pin, GPIO.IN)
@@ -33,6 +33,9 @@ class feeder():
         GPIO.output(self.gpio_sleep,True)
         n = 0
         while n < steps:
+            if n>2000:
+                print('pump does not appear to be working properly!')
+                break
             if GPIO.input(self.gpio_empty) == 1:
                 print('Pump is Empty')
                 break
@@ -46,7 +49,11 @@ class feeder():
     def returnToFull(self,pauseInterval):
         GPIO.output(self.gpio_direction,False)
         GPIO.output(self.gpio_sleep,True)
+        n=0
         while 1==1:
+            if n>2000:
+                print('pump does not appear to be working properly!')
+                break
             if GPIO.input(self.gpio_full) == 1:
                 print('Pump is full')
                 break
@@ -54,8 +61,27 @@ class feeder():
             time.sleep(pauseInterval)
             GPIO.output(self.gpio_step,False)
             time.sleep(pauseInterval)
+            n+=1
         GPIO.output(self.gpio_sleep,False)
 
+    def emptyPump(self,pauseInterval):
+        GPIO.output(self.gpio_direction,True)
+        GPIO.output(self.gpio_sleep,True)
+        n=0
+        while 1==1:
+            if n>2000:
+                print('pump does not appear to be working properly!')
+                break
+            if GPIO.input(self.gpio_empty) == 1:
+                print('Pump is empty')
+                break
+            GPIO.output(self.gpio_step,True)
+            time.sleep(pauseInterval)
+            GPIO.output(self.gpio_step,False)
+            time.sleep(pauseInterval)
+            n+=1
+        print('Pump emptied in '+str(n)+' steps')
+        GPIO.output(self.gpio_sleep,False)
 
 
 print('Adafruit MPR121 Capacitive Touch Sensor Test')
