@@ -14,6 +14,7 @@
 import sys
 import time
 import dataHelper
+import os
 
 import tkinter as tk
 from tkinter import messagebox
@@ -30,17 +31,16 @@ else:
 
 #import sqlite3
 
-import os
 import threading
 
 LARGE_FONT= ("Verdana", 16)
 
 homePath = os.path.split(os.path.realpath(__file__))[0]
-
-
 import pygame
 pygame.init()
 sound = pygame.mixer.Sound(os.path.join(homePath,'sounds','tada.wav'))
+
+
 
 
 class selfControlApp(tk.Tk):
