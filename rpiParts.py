@@ -1,7 +1,16 @@
 import time,sys
 
 import RPi.GPIO as GPIO
-import Adafruit_MPR121.MPR121 as MPR121
+##import Adafruit_MPR121.MPR121 as MPR121
+
+
+import board
+import busio
+
+# Import MPR121 module.
+import adafruit_mpr121
+
+
 
 #setup instruction at https://learn.adafruit.com/mpr121-capacitive-touch-sensor-on-raspberry-pi-and-beaglebone-black/software
 
@@ -88,14 +97,24 @@ print('Adafruit MPR121 Capacitive Touch Sensor Test')
 
 class touchSensor():
     def __init__(self):
-        # Create MPR121 instance.
-        self.cap = MPR121.MPR121()
-
-        # Initialize communication with MPR121 using default I2C bus of device, and
-        # default I2C address (0x5A).  On BeagleBone Black will default to I2C bus 0.
-        if not self.cap.begin():
-            print('Error initializing MPR121.  Check your wiring!')
-            sys.exit(1)
+        
+        # Create I2C bus.
+        i2c = busio.I2C(board.SCL, board.SDA)
+        # Create MPR121 object.
+        self.mpr121 = adafruit_mpr121.MPR121(i2c)
+        #reset the thresholds
+        for i in range(12):
+            self.mpr121[i].threshold = 40
+        
+##        
+##        # Create MPR121 instance.
+##        self.cap = MPR121.MPR121()
+##
+##        # Initialize communication with MPR121 using default I2C bus of device, and
+##        # default I2C address (0x5A).  On BeagleBone Black will default to I2C bus 0.
+##        if not self.cap.begin():
+##            print('Error initializing MPR121.  Check your wiring!')
+##            sys.exit(1)
 
         # Alternatively, specify a custom I2C address such as 0x5B (ADDR tied to 3.3V),
         # 0x5C (ADDR tied to SDA), or 0x5D (ADDR tied to SCL).
@@ -111,24 +130,31 @@ class touchSensor():
     def watch(self):
         # Main loop to print a message every time a pin is touched.
         print('Press Ctrl-C to quit.')
-        last_touched = self.cap.touched()
+##        last_touched = self.cap.touched()
         while True:
-            current_touched = self.cap.touched()
-            # Check each pin's last and current state to see if it was pressed or released.
             for i in range(12):
-
-                # Each pin is represented by a bit in the touched value.  A value of 1
-                # means the pin is being touched, and 0 means it is not being touched.
-                pin_bit = 1 << i
-                # First check if transitioned from not touched to touched.
-                if current_touched & pin_bit and not last_touched & pin_bit:
-                    print('{0} touched!'.format(i))
-                # Next check if transitioned from touched to not touched.
-                if not current_touched & pin_bit and last_touched & pin_bit:
-                    print('{0} released!'.format(i))
-            # Update last state and wait a short period before repeating.
-            last_touched = current_touched
+                # Call is_touched and pass it then number of the input.  If it's touched
+                # it will return True, otherwise it will return False.
+                if self.mpr121[i].value:
+                    print('Input {} touched!'.format(i))
             time.sleep(0.1)
+            
+##            current_touched = self.cap.touched()
+##            # Check each pin's last and current state to see if it was pressed or released.
+##            for i in range(12):
+##
+##                # Each pin is represented by a bit in the touched value.  A value of 1
+##                # means the pin is being touched, and 0 means it is not being touched.
+##                pin_bit = 1 << i
+##                # First check if transitioned from not touched to touched.
+##                if current_touched & pin_bit and not last_touched & pin_bit:
+##                    print('{0} touched!'.format(i))
+##                # Next check if transitioned from touched to not touched.
+##                if not current_touched & pin_bit and last_touched & pin_bit:
+##                    print('{0} released!'.format(i))
+##            # Update last state and wait a short period before repeating.
+##            last_touched = current_touched
+##            time.sleep(0.1)
 
             # Alternatively, if you only care about checking one or a few pins you can
             # call the is_touched method with a pin number to directly check that pin.

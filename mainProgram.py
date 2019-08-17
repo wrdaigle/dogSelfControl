@@ -151,6 +151,7 @@ class screenRegister(tk.Frame):
         self.affiliation = tk.StringVar()
         self.affiliation.set("--") # default choice
         affiliationList = dataHelper.getAffilliationList()
+        print(affiliationList)
         optMenu = tk.OptionMenu(self, self.affiliation, *affiliationList)
         optMenu.config(width=30)
         optMenu.grid(row=4,column=1,sticky='w')
