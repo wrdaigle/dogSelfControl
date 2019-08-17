@@ -5,6 +5,7 @@ dbPath = os.path.join(homePath,'data','selfControlData.sqlite3')
 con = None
 
 def getConfigValue(configDesc):
+    print(configDesc)
     con = sqlite3.connect(dbPath)
     cur = con.cursor()
     cur.execute('SELECT Value,Units from Configuration where Description = ?',(configDesc,))
