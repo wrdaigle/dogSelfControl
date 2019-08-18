@@ -31,63 +31,64 @@ class feeder():
         self.gpio_sleep = gpio_sleep
         self.gpio_full = gpio_full
         self.gpio_empty = gpio_empty
-        #self.pauseInterval = 0.43/1000
+        self.pauseInterval = 0.00005
         for pin in [gpio_step,gpio_direction,gpio_sleep]:
             GPIO.setup(pin, GPIO.OUT)
         for pin in [gpio_full,gpio_empty]:
             GPIO.setup(pin, GPIO.IN)
 
-    def dispense(self,steps,pauseInterval):
+    def dispense(self,steps):
         GPIO.output(self.gpio_direction,True)
         GPIO.output(self.gpio_sleep,True)
         n = 0
         while n < steps:
-            if n>2000:
+            if n>16000:
                 print('pump does not appear to be working properly!')
                 break
             if GPIO.input(self.gpio_empty) == 1:
                 print('Pump is Empty')
                 break
             GPIO.output(self.gpio_step,True)
-            time.sleep(pauseInterval)
+            time.sleep(self.pauseInterval)
             GPIO.output(self.gpio_step,False)
-            time.sleep(pauseInterval)
+            time.sleep(self.pauseInterval)
             n+=1
         GPIO.output(self.gpio_sleep,False)
 
-    def returnToFull(self,pauseInterval):
+    def returnToFull(self):
         GPIO.output(self.gpio_direction,False)
         GPIO.output(self.gpio_sleep,True)
         n=0
         while 1==1:
-            if n>2000:
+            if n>16000:
                 print('pump does not appear to be working properly!')
                 break
             if GPIO.input(self.gpio_full) == 1:
                 print('Pump is full')
                 break
             GPIO.output(self.gpio_step,True)
-            time.sleep(pauseInterval)
+            time.sleep(self.pauseInterval)
             GPIO.output(self.gpio_step,False)
-            time.sleep(pauseInterval)
+            time.sleep(self.pauseInterval)
             n+=1
+        print('Pump filled in '+str(n)+' steps')
         GPIO.output(self.gpio_sleep,False)
 
-    def emptyPump(self,pauseInterval):
+    def emptyPump(self):
         GPIO.output(self.gpio_direction,True)
         GPIO.output(self.gpio_sleep,True)
         n=0
         while 1==1:
-            if n>2000:
+            if n>16000:
                 print('pump does not appear to be working properly!')
                 break
             if GPIO.input(self.gpio_empty) == 1:
                 print('Pump is empty')
                 break
             GPIO.output(self.gpio_step,True)
-            time.sleep(pauseInterval)
+            time.sleep(self.pauseInterval)
             GPIO.output(self.gpio_step,False)
-            time.sleep(pauseInterval)
+            time.sleep(self.pauseInterval)
             n+=1
         print('Pump emptied in '+str(n)+' steps')
         GPIO.output(self.gpio_sleep,False)

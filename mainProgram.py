@@ -14,7 +14,6 @@
 import sys
 import time
 import dataHelper
-import os
 
 import tkinter as tk
 from tkinter import messagebox
@@ -23,24 +22,25 @@ if sys.platform.startswith('win'):
 else:
     import rpiParts
     rpiParts.setupGPIO()
-    feeder1 = rpiParts.feeder(17,27,22,24,25)
-    feeder2 = rpiParts.feeder(19,26,13,23,8)
+    feeder1 = rpiParts.feeder(20,21,16,23,24)
+    feeder2 = rpiParts.feeder(19,26,13,5,6)
     touchSensor = rpiParts.touchSensor()
 
 
 
 #import sqlite3
 
+import os
 import threading
 
 LARGE_FONT= ("Verdana", 16)
 
 homePath = os.path.split(os.path.realpath(__file__))[0]
+
+
 import pygame
 pygame.init()
 sound = pygame.mixer.Sound(os.path.join(homePath,'sounds','tada.wav'))
-
-
 
 
 class selfControlApp(tk.Tk):
@@ -253,9 +253,8 @@ class screenTrialSetup(tk.Frame):
 
         #add a "reset pumps" button
         def onPumpFill():
-            pauseInterval = float(dataHelper.getConfigValue('Pause Interval')['value'])
-            feeder1.returnToFull(pauseInterval)
-            feeder2.returnToFull(pauseInterval)
+            feeder1.returnToFull()
+            feeder2.returnToFull()
         tk.Button(self, text="Reset pumps" ,command=onPumpFill).grid(pady=10,row=6,column=1,sticky='w')
 
         # add a "cancel" button
@@ -358,7 +357,6 @@ class screenTrial(tk.Frame):
         self.statusVar.set('Feeders enabled. Trial in progress')
         startTime = time.time()
         self.btnStartFeeders.config(state="disabled")
-        self.pauseInterval = float(dataHelper.getConfigValue('Pause Interval')['value'])
 ##        if sys.platform.startswith('win') == False:
 ##            sensorWatcher.resetStates()
 ##
@@ -405,7 +403,7 @@ class screenTrial(tk.Frame):
             def dispenseLeft():
                 dataHelper.logEvent(self.trialId,'Left reward distributed.')
                 self.statusVar.set('Left reward distriuted. Start another run at any time.')
-                feeder1.dispense(self.leftSideQuantity,self.pauseInterval)
+                feeder1.dispense(self.leftSideQuantity)
                 #self.controller.show_frame(screenTrialSetup)
                 self.btnStartFeeders.config(state="normal")
             self.controller.after(self.leftSideDelay,dispenseLeft)
@@ -414,7 +412,7 @@ class screenTrial(tk.Frame):
             def dispenseRight():
                 dataHelper.logEvent(self.trialId,'Right reward distributed.')
                 self.statusVar.set('Right reward distriuted. Start another run at any time.')
-                feeder2.dispense(self.rightSideQuantity,self.pauseInterval)
+                feeder2.dispense(self.rightSideQuantity)
                 #self.controller.show_frame(screenTrialSetup)
                 self.btnStartFeeders.config(state="normal")
             self.controller.after(self.rightSideDelay,dispenseRight)
