@@ -22,8 +22,8 @@ if sys.platform.startswith('win'):
 else:
     import rpiParts
     rpiParts.setupGPIO()
-    feeder1 = rpiParts.feeder(17,27,22,24,25)
-    feeder2 = rpiParts.feeder(19,26,13,23,8)
+    feeder1 = rpiParts.feeder(20,21,16,23,24)
+    feeder2 = rpiParts.feeder(19,26,13,5,6)
     touchSensor = rpiParts.touchSensor()
 
 
@@ -151,6 +151,7 @@ class screenRegister(tk.Frame):
         self.affiliation = tk.StringVar()
         self.affiliation.set("--") # default choice
         affiliationList = dataHelper.getAffilliationList()
+        print(affiliationList)
         optMenu = tk.OptionMenu(self, self.affiliation, *affiliationList)
         optMenu.config(width=30)
         optMenu.grid(row=4,column=1,sticky='w')
@@ -252,9 +253,8 @@ class screenTrialSetup(tk.Frame):
 
         #add a "reset pumps" button
         def onPumpFill():
-            pauseInterval = float(dataHelper.getConfigValue('Pause Interval')['value'])
-            feeder1.returnToFull(pauseInterval)
-            feeder2.returnToFull(pauseInterval)
+            feeder1.returnToFull()
+            feeder2.returnToFull()
         tk.Button(self, text="Reset pumps" ,command=onPumpFill).grid(pady=10,row=6,column=1,sticky='w')
 
         # add a "cancel" button
@@ -341,82 +341,92 @@ class screenTrial(tk.Frame):
         self.largeRewardSideVar.set(dogData[2])
 
         if dogData[2] == 'right':
-            self.rightSideDelay = dataHelper.getConfigValue('Large Reward Delay')['value']*1000
+            self.rightSideDelay = dataHelper.getConfigValue('Large Reward Delay')['value']
             self.rightSideQuantity = dataHelper.getConfigValue('Large Reward Quantity')['value']
-            self.leftSideDelay = dataHelper.getConfigValue('Small Reward Delay')['value']*1000
+            self.leftSideDelay = dataHelper.getConfigValue('Small Reward Delay')['value']
             self.leftSideQuantity = dataHelper.getConfigValue('Small Reward Quantity')['value']
         else:
-            self.leftSideDelay = dataHelper.getConfigValue('Large Reward Delay')['value']*1000
+            self.leftSideDelay = dataHelper.getConfigValue('Large Reward Delay')['value']
             self.leftSideQuantity = dataHelper.getConfigValue('Large Reward Quantity')['value']
-            self.rightSideDelay = dataHelper.getConfigValue('Small Reward Delay')['value']*1000
+            self.rightSideDelay = dataHelper.getConfigValue('Small Reward Delay')['value']
             self.rightSideQuantity = dataHelper.getConfigValue('Small Reward Quantity')['value']
 
     def startFeeders(self):
 
-        dataHelper.logEvent(self.trialId,'Feeders enabled')
-        self.statusVar.set('Feeders enabled. Trial in progress')
+        trialLength = 30   
+        iterationLength = 10 
+        timeBetweenIterations = 5
+
+        dataHelper.logEvent(self.trialId,'Trial started')
+        
         startTime = time.time()
         self.btnStartFeeders.config(state="disabled")
-        self.pauseInterval = float(dataHelper.getConfigValue('Pause Interval')['value'])
-##        if sys.platform.startswith('win') == False:
-##            sensorWatcher.resetStates()
-##
-##            def checkTouchState():
-##                self.leftPadTouchedVar.set(sensorWatcher.leftPadTouched)
-##                self.rightPadTouchedVar.set(sensorWatcher.rightPadTouched)
-##                self.controller.after(100,checkTouchState)
-##            checkTouchState()
-        self.leftPadTouchedPreviously = False
-        self.rightPadTouchedPreviously = False
-        def checkStatus():
-            self.timeVar.set(str(round(time.time() - startTime))+ ' seconds')
-            if sys.platform.startswith('win') == False:
-                if touchSensor.cap.is_touched(10):
-                    if self.leftPadTouchedPreviously == True:
-##                        self.leftPadTouchedVar.set('yup')
-                        self.distributeReward('left')
-                        return
-                    else:
-                        self.leftPadTouchedPreviously = True
-                else:
-                    self.leftPadTouchedPreviously = False
-                if touchSensor.cap.is_touched(7):
-                    if self.rightPadTouchedPreviously == True:
-##                        self.rightPadTouchedVar.set('yup')
-                        self.distributeReward('right')
-                        return
-                    else:
-                        self.rightPadTouchedPreviously = True
-                else:
-                    self.rightPadTouchedPreviously = False
-            self.controller.after(10,checkStatus)
-        checkStatus()
-
+        self.statusVar.set('Start a trial at any time')
+        self.update()
+        
+        while True:
+            if (time.time() - startTime) > trialLength:
+                self.statusVar.set('Trial is done')
+                self.btnStartFeeders.config(state="normal")
+                self.update()
+                return
+            dataHelper.logEvent(self.trialId,'Feeders enabled')
+            self.statusVar.set('Feeders enabled. Trial in progress')
+            self.update()
+            out = touchSensor.listenForFirstTouch(iterationLength)
+            print(out)
+            if out['action'] == 'timeout':
+                self.statusVar.set('{} seconds passed without a selection. Next trial will start in {} seconds.'.format(iterationLength,timeBetweenIterations))
+                self.update()
+            if out['action'] == 'touch':
+                if out['sensor'] == 10:
+                    self.statusVar.set('Left pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations)) 
+                    self.update()
+                    self.distributeReward('left')
+                if out['sensor'] == 7:
+                    self.statusVar.set('Right pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations)) 
+                    self.update()
+                    self.distributeReward('right')
+            self.statusVar.set('Next iteration will start in five seconds')
+            self.update()
+            time.sleep(timeBetweenIterations)
+            
     def quitTrial(self):
         self.controller.show_frame(screenStart)
 
     def distributeReward(self,sideSelected):
-
+        print(1.1)
         dataHelper.logEvent(self.trialId,sideSelected+' side selected')
         playSound()
+        print(1.2)
         if sideSelected == 'left':
-            self.statusVar.set('Left side selected. Reward will be distributed after a '+str(self.leftSideDelay/1000)+' second delay.')
-            def dispenseLeft():
-                dataHelper.logEvent(self.trialId,'Left reward distributed.')
-                self.statusVar.set('Left reward distriuted. Start another run at any time.')
-                feeder1.dispense(self.leftSideQuantity,self.pauseInterval)
-                #self.controller.show_frame(screenTrialSetup)
-                self.btnStartFeeders.config(state="normal")
-            self.controller.after(self.leftSideDelay,dispenseLeft)
+            print(1.3)
+            self.statusVar.set('Left side selected. Reward will be distributed after a '+str(self.leftSideDelay)+' second delay.')
+            self.update()
+            print(1.32,self.leftSideDelay)
+            #def dispenseLeft():
+            time.sleep(self.leftSideDelay)
+            print(1.33,self.leftSideDelay)
+            dataHelper.logEvent(self.trialId,'Left reward distributed.')
+            self.statusVar.set('Left reward distriuted. Start another run at any time.')
+            self.update()
+            feeder1.dispense(self.leftSideQuantity)
+            #self.controller.show_frame(screenTrialSetup)
+            self.btnStartFeeders.config(state="normal")
+            #self.controller.after(self.leftSideDelay,dispenseLeft)
         else:
-            self.statusVar.set('Right side selected. Reward will be distributed after a '+str(self.rightSideDelay/1000)+' second delay.')
-            def dispenseRight():
-                dataHelper.logEvent(self.trialId,'Right reward distributed.')
-                self.statusVar.set('Right reward distriuted. Start another run at any time.')
-                feeder2.dispense(self.rightSideQuantity,self.pauseInterval)
-                #self.controller.show_frame(screenTrialSetup)
-                self.btnStartFeeders.config(state="normal")
-            self.controller.after(self.rightSideDelay,dispenseRight)
+            print(1.4)
+            self.statusVar.set('Right side selected. Reward will be distributed after a '+str(self.rightSideDelay)+' second delay.')
+            self.update()
+            #def dispenseRight():
+            time.sleep(self.rightSideDelay)
+            dataHelper.logEvent(self.trialId,'Right reward distributed.')
+            self.statusVar.set('Right reward distriuted. Start another run at any time.')
+            self.update()
+            feeder2.dispense(self.rightSideQuantity)
+            #self.controller.show_frame(screenTrialSetup)
+            self.btnStartFeeders.config(state="normal")
+            #self.controller.after(self.rightSideDelay,dispenseRight)
 
 
 
