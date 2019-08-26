@@ -20,12 +20,20 @@ from tkinter import messagebox
 if sys.platform.startswith('win'):
     pass
 else:
-    import rpiParts
-    rpiParts.setupGPIO()
-    feeder1 = rpiParts.feeder(20,21,16,23,24)
-    feeder2 = rpiParts.feeder(19,26,13,5,6)
-    touchSensor = rpiParts.touchSensor()
-
+    try:
+        import rpiParts
+    except:
+        print('Trouble importing rpiPart')
+    try:
+        rpiParts.setupGPIO()
+        feeder1 = rpiParts.feeder(20,21,16,23,24,22,4)
+        feeder2 = rpiParts.feeder(19,26,13,5,6,18,27)
+    except:
+        print('Trouble initializing feeders')
+    try:
+        touchSensor = rpiParts.touchSensor()
+    except:
+        print('Trouble initializing touch sensors')
 
 
 #import sqlite3
@@ -39,9 +47,12 @@ homePath = os.path.split(os.path.realpath(__file__))[0]
 
 
 import pygame
+pygame.mixer.pre_init(44100, -16, 1, 512)
 pygame.init()
-sound = pygame.mixer.Sound(os.path.join(homePath,'sounds','tada.wav'))
-
+sound_start = pygame.mixer.Sound(os.path.join(homePath,'sounds','chimes.wav'))
+sound_timeout = pygame.mixer.Sound(os.path.join(homePath,'sounds','chord.wav'))
+sound_touched = pygame.mixer.Sound(os.path.join(homePath,'sounds','tada.wav'))
+sound_done = pygame.mixer.Sound(os.path.join(homePath,'sounds','chord.wav'))
 
 class selfControlApp(tk.Tk):
 
@@ -151,7 +162,6 @@ class screenRegister(tk.Frame):
         self.affiliation = tk.StringVar()
         self.affiliation.set("--") # default choice
         affiliationList = dataHelper.getAffilliationList()
-        print(affiliationList)
         optMenu = tk.OptionMenu(self, self.affiliation, *affiliationList)
         optMenu.config(width=30)
         optMenu.grid(row=4,column=1,sticky='w')
@@ -218,14 +228,7 @@ class screenTrialSetup(tk.Frame):
         self.currentDogSelection = None
         self.dogName.set(self.dogChoice_default) # default choice
         dogList = dataHelper.getDogList()
-##        def onDogSelect(val):
-##            print('test',val)
-##            self.dogId = val.split('(')[1].split(')')[0]
-##            self.hoursSinceLastFeeding.set('')
-##            self.observers.set('')
-##            btnRunTrial.config(state="normal")
-##            self.currentDogSelection = val
-##        self.optMenu = tk.OptionMenu(self, self.dogName, *dogList, command=onDogSelect)
+
         self.optMenu = tk.OptionMenu(self, self.dogName, *dogList)
         self.optMenu.config(width=30)
         self.optMenu.grid(pady=10,row=2,column=1,sticky='w')
@@ -353,9 +356,9 @@ class screenTrial(tk.Frame):
 
     def startFeeders(self):
 
-        trialLength = 30   
+        trialLength = 60   
         iterationLength = 10 
-        timeBetweenIterations = 5
+        timeBetweenIterations = 3
 
         dataHelper.logEvent(self.trialId,'Trial started')
         
@@ -364,30 +367,43 @@ class screenTrial(tk.Frame):
         self.statusVar.set('Start a trial at any time')
         self.update()
         
-        while True:
+        done = False
+        while done == False:
             if (time.time() - startTime) > trialLength:
                 self.statusVar.set('Trial is done')
-                self.btnStartFeeders.config(state="normal")
+##                self.btnStartFeeders.config(state="normal")
                 self.update()
+                sound_done.play()
+                
+                done = True
                 return
             dataHelper.logEvent(self.trialId,'Feeders enabled')
+            feeder1.toggleLight('touch',True)
+            feeder2.toggleLight('touch',True)
             self.statusVar.set('Feeders enabled. Trial in progress')
+            sound_start.play()
             self.update()
             out = touchSensor.listenForFirstTouch(iterationLength)
-            print(out)
+            feeder1.toggleLight('touch',False)
+            feeder2.toggleLight('touch',False)
             if out['action'] == 'timeout':
+                sound_timeout.play()
                 self.statusVar.set('{} seconds passed without a selection. Next trial will start in {} seconds.'.format(iterationLength,timeBetweenIterations))
                 self.update()
             if out['action'] == 'touch':
                 if out['sensor'] == 10:
+                    feeder2.toggleLight('bowl',True)
                     self.statusVar.set('Left pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations)) 
                     self.update()
                     self.distributeReward('left')
+                    feeder2.toggleLight('bowl',False)
                 if out['sensor'] == 7:
+                    feeder1.toggleLight('bowl',True)
                     self.statusVar.set('Right pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations)) 
                     self.update()
                     self.distributeReward('right')
-            self.statusVar.set('Next iteration will start in five seconds')
+                    feeder1.toggleLight('bowl',False)
+            self.statusVar.set('Next iteration will start in {} seconds'.format(timeBetweenIterations))
             self.update()
             time.sleep(timeBetweenIterations)
             
@@ -395,49 +411,27 @@ class screenTrial(tk.Frame):
         self.controller.show_frame(screenStart)
 
     def distributeReward(self,sideSelected):
-        print(1.1)
+
         dataHelper.logEvent(self.trialId,sideSelected+' side selected')
-        playSound()
-        print(1.2)
+        sound_touched.play()
         if sideSelected == 'left':
-            print(1.3)
             self.statusVar.set('Left side selected. Reward will be distributed after a '+str(self.leftSideDelay)+' second delay.')
             self.update()
-            print(1.32,self.leftSideDelay)
-            #def dispenseLeft():
             time.sleep(self.leftSideDelay)
-            print(1.33,self.leftSideDelay)
             dataHelper.logEvent(self.trialId,'Left reward distributed.')
             self.statusVar.set('Left reward distriuted. Start another run at any time.')
             self.update()
             feeder1.dispense(self.leftSideQuantity)
-            #self.controller.show_frame(screenTrialSetup)
-            self.btnStartFeeders.config(state="normal")
-            #self.controller.after(self.leftSideDelay,dispenseLeft)
+##            self.btnStartFeeders.config(state="normal")
         else:
-            print(1.4)
             self.statusVar.set('Right side selected. Reward will be distributed after a '+str(self.rightSideDelay)+' second delay.')
             self.update()
-            #def dispenseRight():
             time.sleep(self.rightSideDelay)
             dataHelper.logEvent(self.trialId,'Right reward distributed.')
             self.statusVar.set('Right reward distriuted. Start another run at any time.')
             self.update()
             feeder2.dispense(self.rightSideQuantity)
-            #self.controller.show_frame(screenTrialSetup)
-            self.btnStartFeeders.config(state="normal")
-            #self.controller.after(self.rightSideDelay,dispenseRight)
-
-
-
-def playSound():
-    sound.play()
-
-##def dispense():
-##    feeder2.dispense(100)
-##def fill():
-##    pauseInterval = getPauseInterval()
-##    feeder2.returnToFull()
+##            self.btnStartFeeders.config(state="normal")
 
 def on_closing():
     if messagebox.askokcancel("Quit", "Do you want to quit?"):
@@ -445,9 +439,6 @@ def on_closing():
             rpiParts.cleanup()
         app.destroy()
 
-##if sys.platform.startswith('win') == False:
-##    sensorWatcher = threading.Thread(target=touchSensor.watch)
-##    sensorWatcher.start()
 
 app = selfControlApp()
 app.protocol("WM_DELETE_WINDOW", on_closing)

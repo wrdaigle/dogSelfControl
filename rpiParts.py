@@ -17,20 +17,29 @@ def cleanup():
     GPIO.cleanup()
 
 class feeder():
-    def __init__(self,gpio_step,gpio_direction,gpio_sleep,gpio_full,gpio_empty):
+    def __init__(self,gpio_step,gpio_direction,gpio_sleep,gpio_full,gpio_empty,gpio_bowllight,gpio_touchlight):
         print('Initializing feeder.')
         self.gpio_step = gpio_step
         self.gpio_direction = gpio_direction
         self.gpio_sleep = gpio_sleep
         self.gpio_full = gpio_full
         self.gpio_empty = gpio_empty
+        self.gpio_touchlight = gpio_touchlight
+        self.gpio_bowllight = gpio_bowllight
         self.stepsPerMl = 460 # assumes 1/8 step mode
         micorSecondPause = 4 # minumum pause is 1.9 microsecond
         self.pauseInterval = micorSecondPause/1000000
-        for pin in [gpio_step,gpio_direction,gpio_sleep]:
+        for pin in [gpio_step,gpio_direction,gpio_sleep,gpio_touchlight,gpio_bowllight]:
             GPIO.setup(pin, GPIO.OUT)
+            GPIO.output(pin,False)
         for pin in [gpio_full,gpio_empty]:
             GPIO.setup(pin, GPIO.IN)
+    def toggleLight(self,type,on):
+        if type == 'bowl':
+            GPIO.output(self.gpio_bowllight,on)
+        if type == 'touch':
+            GPIO.output(self.gpio_touchlight,on)
+        
 
     def dispense(self,milliliters):
         GPIO.output(self.gpio_direction,milliliters>=0)
@@ -91,8 +100,7 @@ class feeder():
             time.sleep(self.pauseInterval)
             GPIO.output(self.gpio_step,False)
             time.sleep(self.pauseInterval)
-            n+=1
-        print('Pump emptied in '+str(n)+' steps')
+            n+=        print('Pump emptied in '+str(n)+' steps')
         GPIO.output(self.gpio_sleep,False)
 
 
@@ -107,7 +115,7 @@ class touchSensor():
         self.mpr121 = adafruit_mpr121.MPR121(i2c)
         #reset the thresholds
         for i in range(12):
-            self.mpr121[i].threshold = 100
+            self.mpr121[i].threshold = 50
         self.touched = {'last':None}
         for i in range(12):
             self.touched[i] = False

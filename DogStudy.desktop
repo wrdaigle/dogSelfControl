@@ -1,0 +1,10 @@
+[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Name=Dog Self Control
+Icon=/home/pi/dogSelfControl/images/icon.xpm
+Exec=/usr/bin/python3 /home/pi/dogSelfControl/mainProgram.py
+Comment[en_US]=Hardware info
+StartupNotify=true
+Terminal=true
+Categories=Utility
