@@ -112,7 +112,7 @@ class screenConfig(tk.Frame):
         #add a row for each configuration
         rownum=2
         self.configurations = {}
-        self.configDescriptions = ['Small Reward Delay','Large Reward Delay','Small Reward Quantity','Large Reward Quantity', 'Pause Interval']
+        self.configDescriptions = ['Small Reward Delay','Large Reward Delay','Small Reward Quantity','Large Reward Quantity', 'Trial Length', 'Iteration Length','Time Between Iterations']
         for settingDesc in self.configDescriptions:
             self.configurations.setdefault(settingDesc,{})
             self.configurations[settingDesc]['var'] = tk.StringVar()
@@ -335,6 +335,7 @@ class screenTrial(tk.Frame):
 
 ##        button2 = tk.Button(self, text="Play Sound",command=playSound).grid(row=7,column=2)
     def newTrial(self,dogName,trialId):
+        self.btnStartFeeders.config(state="normal")
         dataHelper.logEvent(trialId,'New trial initiated')
         self.trialId = trialId
         dogID = dogName.split('(')[1].split(')')[0]
@@ -356,9 +357,9 @@ class screenTrial(tk.Frame):
 
     def startFeeders(self):
 
-        trialLength = 60   
-        iterationLength = 10 
-        timeBetweenIterations = 3
+        trialLength = dataHelper.getConfigValue('Trial Length')['value'] 
+        iterationLength = dataHelper.getConfigValue('Iteration Length')['value']
+        timeBetweenIterations = dataHelper.getConfigValue('Time Between Iterations')['value']
 
         dataHelper.logEvent(self.trialId,'Trial started')
         

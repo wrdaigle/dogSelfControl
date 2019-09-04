@@ -1,4 +1,4 @@
-import sqlite3, os, datetime
+import sqlite3, os, datetime, random
 
 homePath = os.path.split(os.path.realpath(__file__))[0]
 dbPath = os.path.join(homePath,'data','selfControlData.sqlite3')
@@ -54,7 +54,7 @@ def dogyAlreadyRegistered(name, breed):
     cur.execute("SELECT * from Dog where name = '"+name+"' and breed = '"+breed+"'")
     data =cur.fetchall()
     con.close()
-    if len(data)>0:
+    if len(data)==0:
         return False
     return True
 
