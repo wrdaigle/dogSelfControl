@@ -27,8 +27,28 @@ else:
         print('Trouble importing rpiPart')
     try:
         rpiParts.setupGPIO()
-        feeder1 = rpiParts.feeder(20,21,16,23,24,22,4,7,'right')
-        feeder2 = rpiParts.feeder(19,26,13,5,6,18,27,10,'left')
+        feeder1 = rpiParts.feeder(
+            20,   #gpio_step
+            21,   #gpio_direction
+            16,   #gpio_sleep
+            23,   #gpio_full
+            24,   #gpio_empty
+            18,   #gpio_bowllight
+            4,    #gpio_touchlight
+            10,   #gpio_touchpad
+            'left'   #side
+            )
+        feeder2 = rpiParts.feeder(
+            19,   #gpio_step
+            26,   #gpio_direction
+            13,   #gpio_sleep
+            5,    #gpio_full
+            6,    #gpio_empty
+            22,   #gpio_bowllight 
+            27,   #gpio_touchlight
+            7,    #gpio_touchpad
+            'right'   #side
+            )
     except:
         print('Trouble initializing feeders')
     try:
@@ -352,7 +372,7 @@ class screenTrial(tk.Frame):
             self.rightSideQuantity = dataHelper.getConfigValue('Small Reward Quantity')['value']
 
     def startFeeders_forced(self):
-
+        print('***force')
         trialLength = dataHelper.getConfigValue('Trial Length')['value']
         iterationLength = dataHelper.getConfigValue('Iteration Length')['value']
         timeBetweenIterations = dataHelper.getConfigValue('Time Between Iterations')['value']
@@ -360,7 +380,8 @@ class screenTrial(tk.Frame):
         dataHelper.logEvent(self.trialId,'Forced trial started')
 
         # randomize the order
-        feeders = random.shuffle([feeder1,feeder2])
+        feeders = [feeder1,feeder2]
+        random.shuffle(feeders)
 
         for feeder in feeders:
 
@@ -379,10 +400,10 @@ class screenTrial(tk.Frame):
                     return
                 dataHelper.logEvent(self.trialId,'Forced trial in progress -- {} is enabled'.format(feeder.side))
                 feeder.toggleLight('touch',True)
-                self.updateText('Forced trial in progress -- {} is enabled')
+                self.updateText('Forced trial in progress -- {} is enabled'.format(feeder.side))
                 sound_start.play()
 
-                out = touchSensor.listenForFirstTouch(iterationLength)
+                out = touchSensor.listenForFirstTouch_specific(iterationLength,feeder.gpio_touchpad)
                 feeder.toggleLight('touch',False)
 
                 if out['action'] == 'timeout':
@@ -399,7 +420,7 @@ class screenTrial(tk.Frame):
                 n+=1
 
     def startFeeders_choice(self):
-
+        print('***choice')
         trialLength = dataHelper.getConfigValue('Trial Length')['value']
         iterationLength = dataHelper.getConfigValue('Iteration Length')['value']
         timeBetweenIterations = dataHelper.getConfigValue('Time Between Iterations')['value']
@@ -424,22 +445,22 @@ class screenTrial(tk.Frame):
             feeder2.toggleLight('touch',True)
             self.updateText('Feeders enabled. Trial in progress')
             sound_start.play()
-            out = touchSensor.listenForFirstTouch(iterationLength)
+            out = touchSensor.listenForFirstTouch_any(iterationLength)
             feeder1.toggleLight('touch',False)
             feeder2.toggleLight('touch',False)
-            if out['action'] == 'timeout':
+            if out['action'] == 'timeout': 
                 sound_timeout.play()
                 self.updateText('{} seconds passed without a selection. Next trial will start in {} seconds.'.format(iterationLength,timeBetweenIterations))
             if out['action'] == 'touch':
-                if out['sensor'] == 10:
-                    feeder2.toggleLight('bowl',True)
-                    self.updateText('Left pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations))
-                    self.distributeReward('left')
-                    feeder2.toggleLight('bowl',False)
                 if out['sensor'] == 7:
-                    feeder1.toggleLight('bowl',True)
+                    feeder2.toggleLight('bowl',True)
                     self.updateText('Right pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations))
                     self.distributeReward('right')
+                    feeder2.toggleLight('bowl',False)
+                if out['sensor'] == 10:
+                    feeder1.toggleLight('bowl',True)
+                    self.updateText('Left pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations))
+                    self.distributeReward('left')
                     feeder1.toggleLight('bowl',False)
             self.updateText('Next iteration will start in {} seconds'.format(timeBetweenIterations))
             time.sleep(timeBetweenIterations)

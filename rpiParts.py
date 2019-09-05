@@ -2,8 +2,6 @@ import time,sys
 
 import RPi.GPIO as GPIO
 ##import Adafruit_MPR121.MPR121 as MPR121
-
-
 import board
 import busio
 
@@ -136,22 +134,22 @@ class touchSensor():
                     self.touched['last'] = i
                     print('Input {} touched!'.format(i))
 
-    def listenForFirstTouch(self,timeout):
-        #self.resetTouched()
-        #touched = False
+    def listenForFirstTouch_any(self,timeout):
         startTime = time.time()
         while True:
             for i in range(12):
-                #if self.mpr121[i].value and self.touched[i] == False:
                 if self.mpr121[i].value:
-                    #self.touched[i] = True
-                    #self.touched['last'] = i
-                    #print('Input {} touched after {} seconds!'.format(i,round(time.time() - startTime,2)))
-                    #touched = True
                     return {'action':'touch','time':round(time.time() - startTime,2),'sensor':i}
             if (time.time() - startTime) > timeout:
                 return {'action':'timeout','time':timeout}
 
-
+    def listenForFirstTouch_specific(self,timeout,pin):
+        startTime = time.time()
+        while True:
+            for i in range(12):
+                if self.mpr121[i].value and pin == i:
+                    return {'action':'touch','time':round(time.time() - startTime,2),'sensor':i}
+            if (time.time() - startTime) > timeout:
+                return {'action':'timeout','time':timeout}
 
 
