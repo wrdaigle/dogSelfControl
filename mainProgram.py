@@ -14,6 +14,7 @@
 import sys
 import time
 import dataHelper
+import random
 
 import tkinter as tk
 from tkinter import messagebox
@@ -26,8 +27,8 @@ else:
         print('Trouble importing rpiPart')
     try:
         rpiParts.setupGPIO()
-        feeder1 = rpiParts.feeder(20,21,16,23,24,22,4)
-        feeder2 = rpiParts.feeder(19,26,13,5,6,18,27)
+        feeder1 = rpiParts.feeder(20,21,16,23,24,22,4,7,'right')
+        feeder2 = rpiParts.feeder(19,26,13,5,6,18,27,10,'left')
     except:
         print('Trouble initializing feeders')
     try:
@@ -305,16 +306,15 @@ class screenTrial(tk.Frame):
         tk.Label(self, text="Dog Breed:").grid(row=2,column=1,sticky='e')
         tk.Label(self, text="Large Reward Side:").grid(row=3,column=1,sticky='e')
 
-        self.btnStartFeeders = tk.Button(self, command=lambda:self.startFeeders(), text="Start Feeders")
-        self.btnStartFeeders.grid(row=4,column=1)
-        #self.btnStopFeeders = tk.Button(self, command=lambda:self.stopFeeders(),text="Stop Feeders")
-        #self.btnStopFeeders.grid(row=4,column=2)
+        self.btnStartFeeders_forced = tk.Button(self, command=lambda:self.startFeeders_forced(), text="Start Forced Trial")
+        self.btnStartFeeders_forced.grid(row=4,column=1)
+        self.btnStartFeeders_choice = tk.Button(self, command=lambda:self.startFeeders_choice(), text="Start Choice Trial")
+        self.btnStartFeeders_choice.grid(row=4,column=2)
         self.btnQuit = tk.Button(self, command=lambda:self.quitTrial(), text="Quit")
         self.btnQuit.grid(row=4,column=3,padx=10)
 
         tk.Label(self, text="Elapsed time:").grid(row=6,column=1,sticky='e')
-##        tk.Label(self, text="Left pad touched:").grid(row=5,column=1,sticky='e')
-##        tk.Label(self, text="Right pad touched:").grid(row=6,column=1,sticky='e')
+
 
         self.statusVar = tk.StringVar()
         tk.Label(self, textvariable = self.statusVar, fg='red').grid(row=7,column=0,columnspan=3)
@@ -328,14 +328,10 @@ class screenTrial(tk.Frame):
         tk.Label(self, textvariable = self.largeRewardSideVar).grid(row=3,column=2,sticky='w')
         self.timeVar = tk.StringVar()
         self.timer = tk.Label(self, textvariable = self.timeVar).grid(row=6,column=2,sticky='w')
-##        self.leftPadTouchedVar = tk.StringVar()
-##        self.timer = tk.Label(self, textvariable = self.leftPadTouchedVar).grid(row=5,column=2,sticky='w')
-##        self.rightPadTouchedVar = tk.StringVar()
-##        self.timer = tk.Label(self, textvariable = self.rightPadTouchedVar).grid(row=6,column=2,sticky='w')
 
-##        button2 = tk.Button(self, text="Play Sound",command=playSound).grid(row=7,column=2)
     def newTrial(self,dogName,trialId):
-        self.btnStartFeeders.config(state="normal")
+        self.btnStartFeeders_forced.config(state="normal")
+        self.btnStartFeeders_choice.config(state="normal")
         dataHelper.logEvent(trialId,'New trial initiated')
         self.trialId = trialId
         dogID = dogName.split('(')[1].split(')')[0]
@@ -355,59 +351,103 @@ class screenTrial(tk.Frame):
             self.rightSideDelay = dataHelper.getConfigValue('Small Reward Delay')['value']
             self.rightSideQuantity = dataHelper.getConfigValue('Small Reward Quantity')['value']
 
-    def startFeeders(self):
+    def startFeeders_forced(self):
 
-        trialLength = dataHelper.getConfigValue('Trial Length')['value'] 
+        trialLength = dataHelper.getConfigValue('Trial Length')['value']
+        iterationLength = dataHelper.getConfigValue('Iteration Length')['value']
+        timeBetweenIterations = dataHelper.getConfigValue('Time Between Iterations')['value']
+
+        dataHelper.logEvent(self.trialId,'Forced trial started')
+
+        # randomize the order
+        feeders = random.shuffle([feeder1,feeder2])
+
+        for feeder in feeders:
+
+            startTime = time.time()
+            self.btnStartFeeders_forced.config(state="disabled")
+            self.btnStartFeeders_choice.config(state="disabled")
+
+            n = 0
+            done = False
+            while n < 10 and done == False:
+
+                if (time.time() - startTime) > trialLength:
+                    self.updateText('Time is up')
+                    sound_done.play()
+                    done = True
+                    return
+                dataHelper.logEvent(self.trialId,'Forced trial in progress -- {} is enabled'.format(feeder.side))
+                feeder.toggleLight('touch',True)
+                self.updateText('Forced trial in progress -- {} is enabled')
+                sound_start.play()
+
+                out = touchSensor.listenForFirstTouch(iterationLength)
+                feeder.toggleLight('touch',False)
+
+                if out['action'] == 'timeout':
+                    sound_timeout.play()
+                    self.updateText('{} seconds passed without a selection. Next trial will start in {} seconds.'.format(iterationLength,timeBetweenIterations))
+                if out['action'] == 'touch':
+                    if out['sensor'] == feeder.gpio_touchpad:
+                        feeder.toggleLight('bowl',True)
+                        self.updateText('{} pad touched. Next trial with start in {} seconds.'.format(feeder.side,timeBetweenIterations))
+                        self.distributeReward(feeder.side)
+                        feeder.toggleLight('bowl',False)
+                self.updateText('Next forced iteration will start in {} seconds'.format(timeBetweenIterations))
+                time.sleep(timeBetweenIterations)
+                n+=1
+
+    def startFeeders_choice(self):
+
+        trialLength = dataHelper.getConfigValue('Trial Length')['value']
         iterationLength = dataHelper.getConfigValue('Iteration Length')['value']
         timeBetweenIterations = dataHelper.getConfigValue('Time Between Iterations')['value']
 
         dataHelper.logEvent(self.trialId,'Trial started')
-        
+
         startTime = time.time()
-        self.btnStartFeeders.config(state="disabled")
-        self.statusVar.set('Start a trial at any time')
-        self.update()
-        
+        self.btnStartFeeders_forced.config(state="disabled")
+        self.btnStartFeeders_choice.config(state="disabled")
+##        self.updateText('Start a trial at any time')
+
         done = False
         while done == False:
             if (time.time() - startTime) > trialLength:
-                self.statusVar.set('Trial is done')
-##                self.btnStartFeeders.config(state="normal")
-                self.update()
+                self.updateText('Trial is done')
                 sound_done.play()
-                
+
                 done = True
                 return
             dataHelper.logEvent(self.trialId,'Feeders enabled')
             feeder1.toggleLight('touch',True)
             feeder2.toggleLight('touch',True)
-            self.statusVar.set('Feeders enabled. Trial in progress')
+            self.updateText('Feeders enabled. Trial in progress')
             sound_start.play()
-            self.update()
             out = touchSensor.listenForFirstTouch(iterationLength)
             feeder1.toggleLight('touch',False)
             feeder2.toggleLight('touch',False)
             if out['action'] == 'timeout':
                 sound_timeout.play()
-                self.statusVar.set('{} seconds passed without a selection. Next trial will start in {} seconds.'.format(iterationLength,timeBetweenIterations))
-                self.update()
+                self.updateText('{} seconds passed without a selection. Next trial will start in {} seconds.'.format(iterationLength,timeBetweenIterations))
             if out['action'] == 'touch':
                 if out['sensor'] == 10:
                     feeder2.toggleLight('bowl',True)
-                    self.statusVar.set('Left pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations)) 
-                    self.update()
+                    self.updateText('Left pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations))
                     self.distributeReward('left')
                     feeder2.toggleLight('bowl',False)
                 if out['sensor'] == 7:
                     feeder1.toggleLight('bowl',True)
-                    self.statusVar.set('Right pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations)) 
-                    self.update()
+                    self.updateText('Right pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations))
                     self.distributeReward('right')
                     feeder1.toggleLight('bowl',False)
-            self.statusVar.set('Next iteration will start in {} seconds'.format(timeBetweenIterations))
-            self.update()
+            self.updateText('Next iteration will start in {} seconds'.format(timeBetweenIterations))
             time.sleep(timeBetweenIterations)
-            
+
+    def updateText(self,newText):
+        self.statusVar.set(newText)
+        self.update()
+
     def quitTrial(self):
         self.controller.show_frame(screenStart)
 
@@ -416,23 +456,18 @@ class screenTrial(tk.Frame):
         dataHelper.logEvent(self.trialId,sideSelected+' side selected')
         sound_touched.play()
         if sideSelected == 'left':
-            self.statusVar.set('Left side selected. Reward will be distributed after a '+str(self.leftSideDelay)+' second delay.')
-            self.update()
+            self.updateText('Left side selected. Reward will be distributed after a '+str(self.leftSideDelay)+' second delay.')
             time.sleep(self.leftSideDelay)
             dataHelper.logEvent(self.trialId,'Left reward distributed.')
-            self.statusVar.set('Left reward distriuted. Start another run at any time.')
-            self.update()
+            self.updateText('Left reward distriuted. Start another run at any time.')
             feeder1.dispense(self.leftSideQuantity)
-##            self.btnStartFeeders.config(state="normal")
         else:
-            self.statusVar.set('Right side selected. Reward will be distributed after a '+str(self.rightSideDelay)+' second delay.')
-            self.update()
+            self.updateText('Right side selected. Reward will be distributed after a '+str(self.rightSideDelay)+' second delay.')
             time.sleep(self.rightSideDelay)
             dataHelper.logEvent(self.trialId,'Right reward distributed.')
-            self.statusVar.set('Right reward distriuted. Start another run at any time.')
-            self.update()
+            self.updateText('Right reward distriuted. Start another run at any time.')
             feeder2.dispense(self.rightSideQuantity)
-##            self.btnStartFeeders.config(state="normal")
+
 
 def on_closing():
     if messagebox.askokcancel("Quit", "Do you want to quit?"):

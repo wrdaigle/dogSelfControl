@@ -17,7 +17,7 @@ def cleanup():
     GPIO.cleanup()
 
 class feeder():
-    def __init__(self,gpio_step,gpio_direction,gpio_sleep,gpio_full,gpio_empty,gpio_bowllight,gpio_touchlight):
+    def __init__(self,gpio_step,gpio_direction,gpio_sleep,gpio_full,gpio_empty,gpio_bowllight,gpio_touchlight, gpio_touchpad,side):
         print('Initializing feeder.')
         self.gpio_step = gpio_step
         self.gpio_direction = gpio_direction
@@ -26,6 +26,8 @@ class feeder():
         self.gpio_empty = gpio_empty
         self.gpio_touchlight = gpio_touchlight
         self.gpio_bowllight = gpio_bowllight
+        self.gpio_touchpad = gpio_touchpad
+        self.side = side
         self.stepsPerMl = 460 # assumes 1/8 step mode
         micorSecondPause = 4 # minumum pause is 1.9 microsecond
         self.pauseInterval = micorSecondPause/1000000
@@ -39,7 +41,7 @@ class feeder():
             GPIO.output(self.gpio_bowllight,on)
         if type == 'touch':
             GPIO.output(self.gpio_touchlight,on)
-        
+
 
     def dispense(self,milliliters):
         GPIO.output(self.gpio_direction,milliliters>=0)
@@ -108,7 +110,7 @@ print('Adafruit MPR121 Capacitive Touch Sensor Test')
 
 class touchSensor():
     def __init__(self):
-        
+
         # Create I2C bus.
         i2c = busio.I2C(board.SCL, board.SDA)
         # Create MPR121 object.
@@ -119,7 +121,7 @@ class touchSensor():
         self.touched = {'last':None}
         for i in range(12):
             self.touched[i] = False
-    
+
     def resetTouched(self):
         self.touched['last'] = None
         for i in range(12):
@@ -132,8 +134,8 @@ class touchSensor():
                 if self.mpr121[i].value and self.touched[i] == False:
                     self.touched[i] = True
                     self.touched['last'] = i
-                    print('Input {} touched!'.format(i))    
-            
+                    print('Input {} touched!'.format(i))
+
     def listenForFirstTouch(self,timeout):
         #self.resetTouched()
         #touched = False
@@ -149,7 +151,7 @@ class touchSensor():
                     return {'action':'touch','time':round(time.time() - startTime,2),'sensor':i}
             if (time.time() - startTime) > timeout:
                 return {'action':'timeout','time':timeout}
-                    
+
 
 
 
