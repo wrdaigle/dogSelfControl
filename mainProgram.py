@@ -44,7 +44,7 @@ else:
             13,   #gpio_sleep
             5,    #gpio_full
             6,    #gpio_empty
-            22,   #gpio_bowllight 
+            22,   #gpio_bowllight
             27,   #gpio_touchlight
             7,    #gpio_touchpad
             'right'   #side
@@ -157,8 +157,6 @@ class screenConfig(tk.Frame):
             newValue = self.configurations[settingDesc]['var'].get()
             settingData = dataHelper.setConfigValue(settingDesc,newValue)
         self.controller.show_frame(screenStart)
-
-
 
 class screenRegister(tk.Frame):
     def __init__(self, parent, controller):
@@ -282,7 +280,7 @@ class screenTrialSetup(tk.Frame):
         def purgeAir():
             feeder1.dispense(5)
             feeder2.dispense(5)
-            
+
         tk.Button(self, text="Reset pumps" ,command=onPumpFill).grid(pady=10,row=6,column=1,sticky='w')
         tk.Button(self, text="Purge air" ,command=purgeAir).grid(pady=10,row=7,column=1,sticky='w')
 
@@ -331,18 +329,20 @@ class screenTrial(tk.Frame):
         tk.Label(self, text="Dog Breed:").grid(row=2,column=1,sticky='e')
         tk.Label(self, text="Large Reward Side:").grid(row=3,column=1,sticky='e')
 
-        self.btnStartFeeders_forced = tk.Button(self, command=lambda:self.startFeeders_forced(), text="Start Forced Trial")
-        self.btnStartFeeders_forced.grid(row=4,column=1)
-        self.btnStartFeeders_choice = tk.Button(self, command=lambda:self.startFeeders_choice(), text="Start Choice Trial")
-        self.btnStartFeeders_choice.grid(row=4,column=2)
-        self.btnQuit = tk.Button(self, command=lambda:self.quitTrial(), text="Quit")
-        self.btnQuit.grid(row=4,column=3,padx=10)
+        self.btnStartFeeders_forced1 = tk.Button(self, bg='lightblue', command=lambda:self.startFeeders_forced1(), text="Start Forced Trial")
+        self.btnStartFeeders_forced1.grid(row=4,column=2,pady=2)
+        self.btnStartFeeders_forced2 = tk.Button(self, bg='lightblue', command=lambda:self.startFeeders_forced_alternating(), text="Start Forced Trial (alternating)")
+        self.btnStartFeeders_forced2.grid(row=5,column=2,pady=2)
+        self.btnStartFeeders_choice = tk.Button(self, bg='lightgreen', command=lambda:self.startFeeders_choice(), text="Start Choice Trial")
+        self.btnStartFeeders_choice.grid(row=6,column=2,pady=2)
+        self.btnQuit = tk.Button(self, bg='red', fg='white', command=lambda:self.quitTrial(), text="Quit")
+        self.btnQuit.grid(row=7,column=3,padx=100)
 
-        tk.Label(self, text="Elapsed time:").grid(row=6,column=1,sticky='e')
+        tk.Label(self, text="Elapsed time:").grid(row=8,column=1,sticky='e')
 
 
         self.statusVar = tk.StringVar()
-        tk.Label(self, textvariable = self.statusVar, fg='red').grid(row=7,column=0,columnspan=3)
+        tk.Label(self, textvariable = self.statusVar, fg='red').grid(row=9,column=0,columnspan=3)
 
         self.dogNameVar = tk.StringVar()
         tk.Label(self, textvariable = self.dogNameVar).grid(row=1,column=2,sticky='w')
@@ -352,10 +352,11 @@ class screenTrial(tk.Frame):
 
         tk.Label(self, textvariable = self.largeRewardSideVar).grid(row=3,column=2,sticky='w')
         self.timeVar = tk.StringVar()
-        self.timer = tk.Label(self, textvariable = self.timeVar).grid(row=6,column=2,sticky='w')
+        self.timer = tk.Label(self, textvariable = self.timeVar).grid(row=8,column=2,sticky='w')
 
     def newTrial(self,dogName,trialId):
-        self.btnStartFeeders_forced.config(state="normal")
+        self.btnStartFeeders_forced1.config(state="normal")
+        self.btnStartFeeders_forced2.config(state="normal")
         self.btnStartFeeders_choice.config(state="normal")
         dataHelper.logEvent(trialId,'New trial initiated')
         self.trialId = trialId
@@ -376,8 +377,8 @@ class screenTrial(tk.Frame):
             self.rightSideDelay = dataHelper.getConfigValue('Small Reward Delay')['value']
             self.rightSideQuantity = dataHelper.getConfigValue('Small Reward Quantity')['value']
 
-    def startFeeders_forced(self):
-        print('***force')
+    def startFeeders_forced1(self):
+        print('***force1')
         trialLength = 240
         iterationLength = dataHelper.getConfigValue('Iteration Length')['value']
         timeBetweenIterations = dataHelper.getConfigValue('Time Between Iterations')['value']
@@ -391,7 +392,8 @@ class screenTrial(tk.Frame):
         for feeder in feeders:
 
             startTime = time.time()
-            self.btnStartFeeders_forced.config(state="disabled")
+            self.btnStartFeeders_forced1.config(state="disabled")
+            self.btnStartFeeders_forced2.config(state="disabled")
             self.btnStartFeeders_choice.config(state="disabled")
 
             n = 0
@@ -426,6 +428,53 @@ class screenTrial(tk.Frame):
                 time.sleep(timeBetweenIterations)
                 n+=1
 
+    def startFeeders_forced_alternating(self):
+        print('***force alternating')
+        trialLength = 240
+        iterationLength = dataHelper.getConfigValue('Iteration Length')['value']
+        timeBetweenIterations = dataHelper.getConfigValue('Time Between Iterations')['value']
+
+        dataHelper.logEvent(self.trialId,'Forced trial started')
+
+        # randomize the order
+        feeders = [feeder1,feeder2]
+        random.shuffle(feeders)
+
+        startTime = time.time()
+        self.btnStartFeeders_forced1.config(state="disabled")
+        self.btnStartFeeders_forced2.config(state="disabled")
+        self.btnStartFeeders_choice.config(state="disabled")
+
+        n = 0
+        done = False
+        while n < 20 and done == False:
+            for feeder in feeders:
+                if (time.time() - startTime) > trialLength:
+                    self.updateText('Time is up')
+                    sound_done.play()
+                    done = True
+                    return
+                dataHelper.logEvent(self.trialId,'Forced trial in progress -- {} is enabled'.format(feeder.side))
+                feeder.toggleLight('touch',True)
+                self.updateText('Forced trial in progress -- {} is enabled'.format(feeder.side))
+                sound_start.play()
+
+                out = touchSensor.listenForFirstTouch_specific(iterationLength,feeder.gpio_touchpad)
+                feeder.toggleLight('touch',False)
+
+                if out['action'] == 'timeout':
+                    sound_timeout.play()
+                    self.updateText('{} seconds passed without a selection. Next trial will start in {} seconds.'.format(iterationLength,timeBetweenIterations))
+                if out['action'] == 'touch':
+                    if out['sensor'] == feeder.gpio_touchpad:
+                        feeder.toggleLight('bowl',True)
+                        self.updateText('{} pad touched. Next trial with start in {} seconds.'.format(feeder.side,timeBetweenIterations))
+                        self.distributeReward(feeder.side)
+                        feeder.toggleLight('bowl',False)
+                self.updateText('Next forced iteration will start in {} seconds'.format(timeBetweenIterations))
+                time.sleep(timeBetweenIterations)
+                n+=1
+
     def startFeeders_choice(self):
         print('***choice')
         trialLength = dataHelper.getConfigValue('Trial Length')['value']
@@ -435,7 +484,8 @@ class screenTrial(tk.Frame):
         dataHelper.logEvent(self.trialId,'Trial started')
 
         startTime = time.time()
-        self.btnStartFeeders_forced.config(state="disabled")
+        self.btnStartFeeders_forced1.config(state="disabled")
+        self.btnStartFeeders_forced2.config(state="disabled")
         self.btnStartFeeders_choice.config(state="disabled")
 ##        self.updateText('Start a trial at any time')
 
@@ -455,7 +505,7 @@ class screenTrial(tk.Frame):
             out = touchSensor.listenForFirstTouch_any(iterationLength)
             feeder1.toggleLight('touch',False)
             feeder2.toggleLight('touch',False)
-            if out['action'] == 'timeout': 
+            if out['action'] == 'timeout':
                 sound_timeout.play()
                 self.updateText('{} seconds passed without a selection. Next trial will start in {} seconds.'.format(iterationLength,timeBetweenIterations))
             if out['action'] == 'touch':
