@@ -279,7 +279,12 @@ class screenTrialSetup(tk.Frame):
         def onPumpFill():
             feeder1.returnToFull()
             feeder2.returnToFull()
+        def purgeAir():
+            feeder1.dispense(5)
+            feeder2.dispense(5)
+            
         tk.Button(self, text="Reset pumps" ,command=onPumpFill).grid(pady=10,row=6,column=1,sticky='w')
+        tk.Button(self, text="Purge air" ,command=purgeAir).grid(pady=10,row=7,column=1,sticky='w')
 
         # add a "cancel" button
         def onCancel():
@@ -373,7 +378,7 @@ class screenTrial(tk.Frame):
 
     def startFeeders_forced(self):
         print('***force')
-        trialLength = dataHelper.getConfigValue('Trial Length')['value']
+        trialLength = 240
         iterationLength = dataHelper.getConfigValue('Iteration Length')['value']
         timeBetweenIterations = dataHelper.getConfigValue('Time Between Iterations')['value']
 
@@ -391,10 +396,12 @@ class screenTrial(tk.Frame):
 
             n = 0
             done = False
+            if n == 10:
+                self.updateText('Dog made 10 selectins on side')
             while n < 10 and done == False:
 
-                if (time.time() - startTime) > trialLength:
-                    self.updateText('Time is up')
+                if (time.time() - startTime) > trialLength/2:
+                    self.updateText('Time is up for side')
                     sound_done.play()
                     done = True
                     return
