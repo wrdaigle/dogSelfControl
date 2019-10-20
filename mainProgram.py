@@ -9,8 +9,6 @@
 # Add a backup function
 # turn off wifi
 
-
-
 import sys
 import time
 import dataHelper
@@ -25,36 +23,36 @@ else:
         import rpiParts
     except:
         print('Trouble importing rpiPart')
-    try:
-        rpiParts.setupGPIO()
-        feeder1 = rpiParts.feeder(
-            20,   #gpio_step
-            21,   #gpio_direction
-            16,   #gpio_sleep
-            23,   #gpio_full
-            24,   #gpio_empty
-            18,   #gpio_bowllight
-            4,    #gpio_touchlight
-            10,   #gpio_touchpad
-            'left'   #side
-            )
-        feeder2 = rpiParts.feeder(
-            19,   #gpio_step
-            26,   #gpio_direction
-            13,   #gpio_sleep
-            5,    #gpio_full
-            6,    #gpio_empty
-            22,   #gpio_bowllight
-            27,   #gpio_touchlight
-            7,    #gpio_touchpad
-            'right'   #side
-            )
-    except:
-        print('Trouble initializing feeders')
-    try:
-        touchSensor = rpiParts.touchSensor()
-    except:
-        print('Trouble initializing touch sensors')
+##    try:
+##        rpiParts.setupGPIO()
+##        feeder1 = rpiParts.feeder(
+##            20,   #gpio_step
+##            21,   #gpio_direction
+##            16,   #gpio_sleep
+##            23,   #gpio_full
+##            24,   #gpio_empty
+##            18,   #gpio_bowllight
+##            4,    #gpio_touchlight
+##            10,   #gpio_touchpad
+##            'left'   #side
+##            )
+##        feeder2 = rpiParts.feeder(
+##            19,   #gpio_step
+##            26,   #gpio_direction
+##            13,   #gpio_sleep
+##            5,    #gpio_full
+##            6,    #gpio_empty
+##            22,   #gpio_bowllight
+##            27,   #gpio_touchlight
+##            7,    #gpio_touchpad
+##            'right'   #side
+##            )
+##    except:
+##        print('Trouble initializing feeders')
+##    try:
+##        touchSensor = rpiParts.touchSensor()
+##    except:
+##        print('Trouble initializing touch sensors')
 
 
 #import sqlite3
@@ -177,16 +175,20 @@ class screenRegister(tk.Frame):
         self.dogAge = tk.IntVar()
         tk.Entry(self,textvariable=self.dogAge).grid(row=3,column=1,sticky='w')
 
-        tk.Label(self, text="Affiliation:").grid(row=4,column=0,sticky='e')
+        tk.Label(self, text="Touch Sensor Height:").grid(row=4,column=0,sticky='e')
+        self.height = tk.IntVar()
+        tk.Entry(self,textvariable=self.height).grid(row=4,column=1,sticky='w')
+
+        tk.Label(self, text="Affiliation:").grid(row=5,column=0,sticky='e')
         self.affiliation = tk.StringVar()
         self.affiliation.set("--") # default choice
         affiliationList = dataHelper.getAffilliationList()
         optMenu = tk.OptionMenu(self, self.affiliation, *affiliationList)
         optMenu.config(width=30)
-        optMenu.grid(row=4,column=1,sticky='w')
+        optMenu.grid(row=5,column=1,sticky='w')
 
-        btnCommit = tk.Button(self, text="Submit",command=lambda: self.addRecord()).grid(row=6,column=1,pady=10)
-        btnExit = tk.Button(self, text="Exit",command=lambda: controller.show_frame(screenStart)).grid(row=6,column=2,pady=10,padx=10)
+        btnCommit = tk.Button(self, text="Submit",command=lambda: self.addRecord()).grid(row=7,column=1,pady=10)
+        btnExit = tk.Button(self, text="Exit",command=lambda: controller.show_frame(screenStart)).grid(row=7,column=2,pady=10,padx=10)
 
     def validateForm(self):
         # check for missing values
@@ -197,6 +199,8 @@ class screenRegister(tk.Frame):
             formErrors.append("Breed is required!")
         if self.dogAge.get() == 0:
             formErrors.append("Dog Age is required!")
+        if self.height.get() == 0:
+            formErrors.append("Touch Sensor Height is required!")
         if self.affiliation.get() == "--":
             formErrors.append('Affiliation is required!')
         if len(formErrors)>0:
@@ -217,12 +221,13 @@ class screenRegister(tk.Frame):
         self.dogName.set('')
         self.dogBreed.set('')
         self.dogAge.set(0)
+        self.height.set(0)
         self.affiliation.set('--')
 
     def addRecord(self):
         if self.validateForm():
 
-            dataHelper.addDogRecord(self.dogName.get(),self.dogBreed.get(),self.dogAge.get(),self.affiliation.get())
+            dataHelper.addDogRecord(self.dogName.get(),self.dogBreed.get(),self.dogAge.get(),self.affiliation.get(),self.height.get())
             messagebox.showinfo('Dog Registered',self.dogName.get() + ' has been registered.')
 
             self.resetForm()
@@ -273,24 +278,13 @@ class screenTrialSetup(tk.Frame):
         btnRunTrial = tk.Button(self, text="Start trial", command=onTrialRun)
         btnRunTrial.grid(pady=10,row=5,column=1,sticky='w')
 
-        #add a "reset pumps" button
-        def onPumpFill():
-            feeder1.returnToFull()
-            feeder2.returnToFull()
-        def purgeAir():
-            feeder1.dispense(5)
-            feeder2.dispense(5)
-
-        tk.Button(self, text="Reset pumps" ,command=onPumpFill).grid(pady=10,row=6,column=1,sticky='w')
-        tk.Button(self, text="Purge air" ,command=purgeAir).grid(pady=10,row=7,column=1,sticky='w')
-
         # add a "cancel" button
         def onCancel():
             #self.dogName.set(self.dogChoice_default)
             controller.show_frame(screenStart)
             #btnRunTrial.config(state="disabled")
         btnCancel = tk.Button(self, text="Cancel", command=onCancel )
-        btnCancel.grid(pady=10,row=6,column=2)
+        btnCancel.grid(pady=10,row=5,column=2)
     def resetForm(self):
         self.dogName.set(self.dogChoice_default)
         self.hoursSinceLastFeeding.set('')
@@ -322,39 +316,105 @@ class screenTrial(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
 
+        self.feeder1 = None
+        self.feeder2 = None
+
         self.dogName = ''
         self.controller = controller
         tk.Label(self, text="Current trial", font=LARGE_FONT).grid(row=0,column=1)
         tk.Label(self, text="Dog Name:").grid(row=1,column=1,sticky='e')
         tk.Label(self, text="Dog Breed:").grid(row=2,column=1,sticky='e')
         tk.Label(self, text="Large Reward Side:").grid(row=3,column=1,sticky='e')
+        tk.Label(self, text="Touch Sensor Height:").grid(row=4,column=1,sticky='e')
+
+##        #add a "reset pumps" button
+##        def onPumpFill():
+##            feeder1.returnToFull()
+##            feeder2.returnToFull()
+##        def purgeAir():
+##            feeder1.dispense(5)
+##            feeder2.dispense(5)
+
+        tk.Button(self, text="Reset pumps" ,command=onPumpFill).grid(pady=10,row=5,column=2,sticky='w')
+        tk.Button(self, text="Purge air" ,command=purgeAir).grid(padx=10,pady=10,row=5,column=3,sticky='w')
 
         self.btnStartFeeders_forced1 = tk.Button(self, bg='lightblue', command=lambda:self.startFeeders_forced1(), text="Start Forced Trial")
-        self.btnStartFeeders_forced1.grid(row=4,column=2,pady=2)
+        self.btnStartFeeders_forced1.grid(row=6,column=2,pady=2)
         self.btnStartFeeders_forced2 = tk.Button(self, bg='lightblue', command=lambda:self.startFeeders_forced_alternating(), text="Start Forced Trial (alternating)")
-        self.btnStartFeeders_forced2.grid(row=5,column=2,pady=2)
+        self.btnStartFeeders_forced2.grid(row=7,column=2,pady=2)
         self.btnStartFeeders_choice = tk.Button(self, bg='lightgreen', command=lambda:self.startFeeders_choice(), text="Start Choice Trial")
-        self.btnStartFeeders_choice.grid(row=6,column=2,pady=2)
+        self.btnStartFeeders_choice.grid(row=8,column=2,pady=2)
         self.btnQuit = tk.Button(self, bg='red', fg='white', command=lambda:self.quitTrial(), text="Quit")
-        self.btnQuit.grid(row=7,column=3,padx=100)
+        self.btnQuit.grid(row=10,column=3,padx=100)
 
-        tk.Label(self, text="Elapsed time:").grid(row=8,column=1,sticky='e')
-
+        tk.Label(self, text="Elapsed time:").grid(row=10,column=1,sticky='e')
 
         self.statusVar = tk.StringVar()
-        tk.Label(self, textvariable = self.statusVar, fg='red').grid(row=9,column=0,columnspan=3)
+        tk.Label(self, textvariable = self.statusVar, fg='red').grid(row=11,column=0,columnspan=3)
 
         self.dogNameVar = tk.StringVar()
         tk.Label(self, textvariable = self.dogNameVar).grid(row=1,column=2,sticky='w')
         self.dogBreedVar = tk.StringVar()
         tk.Label(self, textvariable = self.dogBreedVar).grid(row=2,column=2,sticky='w')
         self.largeRewardSideVar = tk.StringVar()
-
         tk.Label(self, textvariable = self.largeRewardSideVar).grid(row=3,column=2,sticky='w')
+        self.touchSensorHeightVar = tk.StringVar()
+        tk.Label(self, textvariable = self.touchSensorHeightVar).grid(row=4,column=2,sticky='w')
         self.timeVar = tk.StringVar()
-        self.timer = tk.Label(self, textvariable = self.timeVar).grid(row=8,column=2,sticky='w')
+        self.timer = tk.Label(self, textvariable = self.timeVar).grid(row=10,column=2,sticky='w')
+
+
+
+    def setupParts():
+        try:
+            rpiParts.setupGPIO()
+            self.feeder1 = rpiParts.feeder(
+                20,   #gpio_step
+                21,   #gpio_direction
+                16,   #gpio_sleep
+                23,   #gpio_full
+                24,   #gpio_empty
+                18,   #gpio_bowllight
+                4,    #gpio_touchlight
+                10,   #gpio_touchpad
+                'left'   #side
+                )
+            self.feeder2 = rpiParts.feeder(
+                19,   #gpio_step
+                26,   #gpio_direction
+                13,   #gpio_sleep
+                5,    #gpio_full
+                6,    #gpio_empty
+                22,   #gpio_bowllight
+                27,   #gpio_touchlight
+                7,    #gpio_touchpad
+                'right'   #side
+                )
+        except:
+            print('Trouble initializing feeders')
+        try:
+            touchSensor = rpiParts.touchSensor()
+        except:
+            print('Trouble initializing touch sensors')
+
+    def teardownParts():
+        rpiParts.cleanup()
+
+    #add a "reset pumps" button
+    def onPumpFill(self):
+        self.setupParts()
+        self.feeder1.returnToFull()
+        self.feeder2.returnToFull()
+        self.teardownParts()
+    def purgeAir(self):
+        self.setupParts()
+        self.feeder1.dispense(5)
+        self.feeder2.dispense(5)
+        self.teardownParts()
+
 
     def newTrial(self,dogName,trialId):
+        self.setupParts()
         self.btnStartFeeders_forced1.config(state="normal")
         self.btnStartFeeders_forced2.config(state="normal")
         self.btnStartFeeders_choice.config(state="normal")
@@ -365,6 +425,7 @@ class screenTrial(tk.Frame):
         self.dogNameVar.set(dogData[0])
         self.dogBreedVar.set(dogData[1])
         self.largeRewardSideVar.set(dogData[2])
+        self.touchSensorHeightVar.set(dogData[3])
 
         if dogData[2] == 'right':
             self.rightSideDelay = dataHelper.getConfigValue('Large Reward Delay')['value']
@@ -376,17 +437,19 @@ class screenTrial(tk.Frame):
             self.leftSideQuantity = dataHelper.getConfigValue('Large Reward Quantity')['value']
             self.rightSideDelay = dataHelper.getConfigValue('Small Reward Delay')['value']
             self.rightSideQuantity = dataHelper.getConfigValue('Small Reward Quantity')['value']
+        self.teardownParts()
 
     def startFeeders_forced1(self):
-        print('***force1')
+        self.setupParts()
         trialLength = 240
         iterationLength = dataHelper.getConfigValue('Iteration Length')['value']
         timeBetweenIterations = dataHelper.getConfigValue('Time Between Iterations')['value']
 
-        dataHelper.logEvent(self.trialId,'Forced trial started')
+
+        dataHelper.logEvent(self.trialId,'F1:Forced trial started')
 
         # randomize the order
-        feeders = [feeder1,feeder2]
+        feeders = [self.feeder1,self.feeder2]
         random.shuffle(feeders)
 
         for feeder in feeders:
@@ -407,7 +470,7 @@ class screenTrial(tk.Frame):
                     sound_done.play()
                     done = True
                     return
-                dataHelper.logEvent(self.trialId,'Forced trial in progress -- {} is enabled'.format(feeder.side))
+                dataHelper.logEvent(self.trialId,'F1:Forced trial in progress -- {} is enabled'.format(feeder.side))
                 feeder.toggleLight('touch',True)
                 self.updateText('Forced trial in progress -- {} is enabled'.format(feeder.side))
                 sound_start.play()
@@ -422,22 +485,23 @@ class screenTrial(tk.Frame):
                     if out['sensor'] == feeder.gpio_touchpad:
                         feeder.toggleLight('bowl',True)
                         self.updateText('{} pad touched. Next trial with start in {} seconds.'.format(feeder.side,timeBetweenIterations))
-                        self.distributeReward(feeder.side)
+                        self.distributeReward(feeder.side,'F1')
                         feeder.toggleLight('bowl',False)
                 self.updateText('Next forced iteration will start in {} seconds'.format(timeBetweenIterations))
                 time.sleep(timeBetweenIterations)
                 n+=1
+        self.teardownParts()
 
     def startFeeders_forced_alternating(self):
-        print('***force alternating')
+        self.setupParts()
         trialLength = 240
         iterationLength = dataHelper.getConfigValue('Iteration Length')['value']
         timeBetweenIterations = dataHelper.getConfigValue('Time Between Iterations')['value']
 
-        dataHelper.logEvent(self.trialId,'Forced trial started')
+        dataHelper.logEvent(self.trialId,'F2:Forced trial started')
 
         # randomize the order
-        feeders = [feeder1,feeder2]
+        feeders = [self.feeder1,self.feeder2]
         random.shuffle(feeders)
 
         startTime = time.time()
@@ -447,14 +511,14 @@ class screenTrial(tk.Frame):
 
         n = 0
         done = False
-        while n < 20 and done == False:
+        while n < 4 and done == False:
             for feeder in feeders:
                 if (time.time() - startTime) > trialLength:
                     self.updateText('Time is up')
                     sound_done.play()
                     done = True
                     return
-                dataHelper.logEvent(self.trialId,'Forced trial in progress -- {} is enabled'.format(feeder.side))
+                dataHelper.logEvent(self.trialId,'F2:Forced trial in progress -- {} is enabled'.format(feeder.side))
                 feeder.toggleLight('touch',True)
                 self.updateText('Forced trial in progress -- {} is enabled'.format(feeder.side))
                 sound_start.play()
@@ -469,19 +533,20 @@ class screenTrial(tk.Frame):
                     if out['sensor'] == feeder.gpio_touchpad:
                         feeder.toggleLight('bowl',True)
                         self.updateText('{} pad touched. Next trial with start in {} seconds.'.format(feeder.side,timeBetweenIterations))
-                        self.distributeReward(feeder.side)
+                        self.distributeReward(feeder.side,'F2')
                         feeder.toggleLight('bowl',False)
                 self.updateText('Next forced iteration will start in {} seconds'.format(timeBetweenIterations))
                 time.sleep(timeBetweenIterations)
                 n+=1
+        self.teardownParts()
 
     def startFeeders_choice(self):
-        print('***choice')
+        self.setupParts()
         trialLength = dataHelper.getConfigValue('Trial Length')['value']
         iterationLength = dataHelper.getConfigValue('Iteration Length')['value']
         timeBetweenIterations = dataHelper.getConfigValue('Time Between Iterations')['value']
 
-        dataHelper.logEvent(self.trialId,'Trial started')
+        dataHelper.logEvent(self.trialId,'C1:Trial started')
 
         startTime = time.time()
         self.btnStartFeeders_forced1.config(state="disabled")
@@ -497,14 +562,14 @@ class screenTrial(tk.Frame):
 
                 done = True
                 return
-            dataHelper.logEvent(self.trialId,'Feeders enabled')
-            feeder1.toggleLight('touch',True)
-            feeder2.toggleLight('touch',True)
+            dataHelper.logEvent(self.trialId,'C1:Feeders enabled')
+            self.feeder1.toggleLight('touch',True)
+            self.feeder2.toggleLight('touch',True)
             self.updateText('Feeders enabled. Trial in progress')
             sound_start.play()
             out = touchSensor.listenForFirstTouch_any(iterationLength)
-            feeder1.toggleLight('touch',False)
-            feeder2.toggleLight('touch',False)
+            self.feeder1.toggleLight('touch',False)
+            self.feeder2.toggleLight('touch',False)
             if out['action'] == 'timeout':
                 sound_timeout.play()
                 self.updateText('{} seconds passed without a selection. Next trial will start in {} seconds.'.format(iterationLength,timeBetweenIterations))
@@ -512,15 +577,16 @@ class screenTrial(tk.Frame):
                 if out['sensor'] == 7:
                     feeder2.toggleLight('bowl',True)
                     self.updateText('Right pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations))
-                    self.distributeReward('right')
+                    self.distributeReward('right','C1')
                     feeder2.toggleLight('bowl',False)
                 if out['sensor'] == 10:
-                    feeder1.toggleLight('bowl',True)
+                    self.feeder1.toggleLight('bowl',True)
                     self.updateText('Left pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations))
-                    self.distributeReward('left')
-                    feeder1.toggleLight('bowl',False)
+                    self.distributeReward('left','C1')
+                    self.feeder1.toggleLight('bowl',False)
             self.updateText('Next iteration will start in {} seconds'.format(timeBetweenIterations))
             time.sleep(timeBetweenIterations)
+        self.teardownParts()
 
     def updateText(self,newText):
         self.statusVar.set(newText)
@@ -529,22 +595,22 @@ class screenTrial(tk.Frame):
     def quitTrial(self):
         self.controller.show_frame(screenStart)
 
-    def distributeReward(self,sideSelected):
+    def distributeReward(self,sideSelected,trialType):
 
         dataHelper.logEvent(self.trialId,sideSelected+' side selected')
         sound_touched.play()
         if sideSelected == 'left':
             self.updateText('Left side selected. Reward will be distributed after a '+str(self.leftSideDelay)+' second delay.')
             time.sleep(self.leftSideDelay)
-            dataHelper.logEvent(self.trialId,'Left reward distributed.')
+            dataHelper.logEvent(self.trialId,trialType+':Left reward distributed.')
             self.updateText('Left reward distriuted. Start another run at any time.')
-            feeder1.dispense(self.leftSideQuantity)
+            self.feeder1.dispense(self.leftSideQuantity)
         else:
             self.updateText('Right side selected. Reward will be distributed after a '+str(self.rightSideDelay)+' second delay.')
             time.sleep(self.rightSideDelay)
-            dataHelper.logEvent(self.trialId,'Right reward distributed.')
+            dataHelper.logEvent(self.trialId,trialType+':Right reward distributed.')
             self.updateText('Right reward distriuted. Start another run at any time.')
-            feeder2.dispense(self.rightSideQuantity)
+            self.feeder2.dispense(self.rightSideQuantity)
 
 
 def on_closing():

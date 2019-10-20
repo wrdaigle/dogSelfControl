@@ -72,13 +72,13 @@ def getAffilliationList():
 def getDogData(dogID):
     con = sqlite3.connect(dbPath)
     cur = con.cursor()
-    cur.execute('SELECT Name,Breed,Large_reward_side from Dog where dogID = '+dogID)
+    cur.execute('SELECT Name,Breed,Large_reward_side,Touch_sensor_height from Dog where dogID = '+dogID)
     data =cur.fetchall()
     dogData = data[0]
     con.close()
     return dogData
 
-def addDogRecord(dogName,dogBreed,dogAge,affiliation):
+def addDogRecord(dogName,dogBreed,dogAge,affiliation,height):
     con = sqlite3.connect(dbPath)
     cur = con.cursor()
     cur.execute(
@@ -89,6 +89,7 @@ def addDogRecord(dogName,dogBreed,dogAge,affiliation):
                     Breed,
                     Age_at_registration,
                     Affiliation,
+                    Touch_sensor_height,
                     Large_reward_side
             )
             VALUES (
@@ -97,6 +98,7 @@ def addDogRecord(dogName,dogBreed,dogAge,affiliation):
                 '"""+dogBreed+"""',
                 '"""+str(dogAge)+"""',
                 '"""+affiliation+"""',
+                '"""+str(height)+"""',
                 '"""+random.choice(['left','right'])+"""'
             )
         """
