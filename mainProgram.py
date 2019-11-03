@@ -66,12 +66,8 @@ homePath = os.path.split(os.path.realpath(__file__))[0]
 
 
 import pygame
-pygame.mixer.pre_init(44100, -16, 1, 512)
-pygame.init()
-sound_start = pygame.mixer.Sound(os.path.join(homePath,'sounds','chimes.wav'))
-sound_timeout = pygame.mixer.Sound(os.path.join(homePath,'sounds','chord.wav'))
-sound_touched = pygame.mixer.Sound(os.path.join(homePath,'sounds','tada.wav'))
-sound_done = pygame.mixer.Sound(os.path.join(homePath,'sounds','chord.wav'))
+
+
 
 class selfControlApp(tk.Tk):
 
@@ -318,6 +314,7 @@ class screenTrial(tk.Frame):
 
         self.feeder1 = None
         self.feeder2 = None
+        self.touchSensor = None
 
         self.dogName = ''
         self.controller = controller
@@ -335,8 +332,8 @@ class screenTrial(tk.Frame):
 ##            feeder1.dispense(5)
 ##            feeder2.dispense(5)
 
-        tk.Button(self, text="Reset pumps" ,command=onPumpFill).grid(pady=10,row=5,column=2,sticky='w')
-        tk.Button(self, text="Purge air" ,command=purgeAir).grid(padx=10,pady=10,row=5,column=3,sticky='w')
+        tk.Button(self, text="Reset pumps" ,command=self.onPumpFill).grid(pady=10,row=5,column=2,sticky='w')
+        tk.Button(self, text="Purge air" ,command=self.purgeAir).grid(padx=10,pady=10,row=5,column=3,sticky='w')
 
         self.btnStartFeeders_forced1 = tk.Button(self, bg='lightblue', command=lambda:self.startFeeders_forced1(), text="Start Forced Trial")
         self.btnStartFeeders_forced1.grid(row=6,column=2,pady=2)
@@ -365,7 +362,7 @@ class screenTrial(tk.Frame):
 
 
 
-    def setupParts():
+    def setupParts(self):
         try:
             rpiParts.setupGPIO()
             self.feeder1 = rpiParts.feeder(
@@ -393,12 +390,26 @@ class screenTrial(tk.Frame):
         except:
             print('Trouble initializing feeders')
         try:
-            touchSensor = rpiParts.touchSensor()
+            self.touchSensor = rpiParts.touchSensor()
         except:
             print('Trouble initializing touch sensors')
+        try:
+            pygame.mixer.pre_init(44100, -16, 1, 512)
+            pygame.init()
+            self.sound_start = pygame.mixer.Sound(os.path.join(homePath,'sounds','chimes.wav'))
+            self.sound_timeout = pygame.mixer.Sound(os.path.join(homePath,'sounds','chord.wav'))
+            self.sound_touched = pygame.mixer.Sound(os.path.join(homePath,'sounds','tada.wav'))
+            self.sound_done = pygame.mixer.Sound(os.path.join(homePath,'sounds','chord.wav'))
+        except:
+            print('Trouble initializing sounds')
 
-    def teardownParts():
+    def teardownParts(self):
         rpiParts.cleanup()
+        pygame.quit()
+        self.btnStartFeeders_forced1.config(state="normal")
+        self.btnStartFeeders_forced2.config(state="normal")
+        self.btnStartFeeders_choice.config(state="normal")
+        
 
     #add a "reset pumps" button
     def onPumpFill(self):
@@ -461,25 +472,26 @@ class screenTrial(tk.Frame):
 
             n = 0
             done = False
-            if n == 10:
+            numOfIterations = 5
+            if n == numOfIterations:
                 self.updateText('Dog made 10 selectins on side')
-            while n < 10 and done == False:
+            while n < numOfIterations and done == False:
 
                 if (time.time() - startTime) > trialLength/2:
                     self.updateText('Time is up for side')
-                    sound_done.play()
+                    self.sound_done.play()
                     done = True
                     return
                 dataHelper.logEvent(self.trialId,'F1:Forced trial in progress -- {} is enabled'.format(feeder.side))
                 feeder.toggleLight('touch',True)
                 self.updateText('Forced trial in progress -- {} is enabled'.format(feeder.side))
-                sound_start.play()
+                self.sound_start.play()
 
-                out = touchSensor.listenForFirstTouch_specific(iterationLength,feeder.gpio_touchpad)
+                out = self.touchSensor.listenForFirstTouch_specific(iterationLength,feeder.gpio_touchpad)
                 feeder.toggleLight('touch',False)
 
                 if out['action'] == 'timeout':
-                    sound_timeout.play()
+                    self.sound_timeout.play()
                     self.updateText('{} seconds passed without a selection. Next trial will start in {} seconds.'.format(iterationLength,timeBetweenIterations))
                 if out['action'] == 'touch':
                     if out['sensor'] == feeder.gpio_touchpad:
@@ -515,19 +527,19 @@ class screenTrial(tk.Frame):
             for feeder in feeders:
                 if (time.time() - startTime) > trialLength:
                     self.updateText('Time is up')
-                    sound_done.play()
+                    self.sound_done.play()
                     done = True
                     return
                 dataHelper.logEvent(self.trialId,'F2:Forced trial in progress -- {} is enabled'.format(feeder.side))
                 feeder.toggleLight('touch',True)
                 self.updateText('Forced trial in progress -- {} is enabled'.format(feeder.side))
-                sound_start.play()
+                self.sound_start.play()
 
-                out = touchSensor.listenForFirstTouch_specific(iterationLength,feeder.gpio_touchpad)
+                out = self.touchSensor.listenForFirstTouch_specific(iterationLength,feeder.gpio_touchpad)
                 feeder.toggleLight('touch',False)
 
                 if out['action'] == 'timeout':
-                    sound_timeout.play()
+                    self.sound_timeout.play()
                     self.updateText('{} seconds passed without a selection. Next trial will start in {} seconds.'.format(iterationLength,timeBetweenIterations))
                 if out['action'] == 'touch':
                     if out['sensor'] == feeder.gpio_touchpad:
@@ -558,7 +570,7 @@ class screenTrial(tk.Frame):
         while done == False:
             if (time.time() - startTime) > trialLength:
                 self.updateText('Trial is done')
-                sound_done.play()
+                self.sound_done.play()
 
                 done = True
                 return
@@ -566,19 +578,19 @@ class screenTrial(tk.Frame):
             self.feeder1.toggleLight('touch',True)
             self.feeder2.toggleLight('touch',True)
             self.updateText('Feeders enabled. Trial in progress')
-            sound_start.play()
-            out = touchSensor.listenForFirstTouch_any(iterationLength)
+            self.sound_start.play()
+            out = self.touchSensor.listenForFirstTouch_any(iterationLength)
             self.feeder1.toggleLight('touch',False)
             self.feeder2.toggleLight('touch',False)
             if out['action'] == 'timeout':
-                sound_timeout.play()
+                self.sound_timeout.play()
                 self.updateText('{} seconds passed without a selection. Next trial will start in {} seconds.'.format(iterationLength,timeBetweenIterations))
             if out['action'] == 'touch':
                 if out['sensor'] == 7:
-                    feeder2.toggleLight('bowl',True)
+                    self.feeder2.toggleLight('bowl',True)
                     self.updateText('Right pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations))
                     self.distributeReward('right','C1')
-                    feeder2.toggleLight('bowl',False)
+                    self.feeder2.toggleLight('bowl',False)
                 if out['sensor'] == 10:
                     self.feeder1.toggleLight('bowl',True)
                     self.updateText('Left pad touched. Next trial with start in {} seconds.'.format(iterationLength,timeBetweenIterations))
@@ -598,7 +610,7 @@ class screenTrial(tk.Frame):
     def distributeReward(self,sideSelected,trialType):
 
         dataHelper.logEvent(self.trialId,sideSelected+' side selected')
-        sound_touched.play()
+        self.sound_touched.play()
         if sideSelected == 'left':
             self.updateText('Left side selected. Reward will be distributed after a '+str(self.leftSideDelay)+' second delay.')
             time.sleep(self.leftSideDelay)
