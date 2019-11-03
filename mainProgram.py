@@ -409,7 +409,7 @@ class screenTrial(tk.Frame):
         self.btnStartFeeders_forced1.config(state="normal")
         self.btnStartFeeders_forced2.config(state="normal")
         self.btnStartFeeders_choice.config(state="normal")
-        
+
 
     #add a "reset pumps" button
     def onPumpFill(self):
@@ -567,13 +567,20 @@ class screenTrial(tk.Frame):
 ##        self.updateText('Start a trial at any time')
 
         done = False
+        maxNumberOfChoices=10
+        numOfChoices = 0
         while done == False:
             if (time.time() - startTime) > trialLength:
-                self.updateText('Trial is done')
+                self.updateText('Trial is done. Time is up')
                 self.sound_done.play()
-
                 done = True
                 return
+            if numOfChoices==maxNumberOfChoices:
+                self.updateText('Trial is done. {} choices were made'.format(maxNumberOfChoices))
+                self.sound_done.play()
+                done = True
+                return
+
             dataHelper.logEvent(self.trialId,'C1:Feeders enabled')
             self.feeder1.toggleLight('touch',True)
             self.feeder2.toggleLight('touch',True)
@@ -598,6 +605,7 @@ class screenTrial(tk.Frame):
                     self.feeder1.toggleLight('bowl',False)
             self.updateText('Next iteration will start in {} seconds'.format(timeBetweenIterations))
             time.sleep(timeBetweenIterations)
+            numOfChoices+=1
         self.teardownParts()
 
     def updateText(self,newText):
